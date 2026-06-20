@@ -1,0 +1,48 @@
+{
+  "name": "lin-preorder-store",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:api": "tsx watch server/index.ts",
+    "api": "tsx server/index.ts",
+    "start": "npm run api",
+    "build": "tsc -b && vite build && cp dist/index.html dist/404.html",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "leaflet": "^1.9.4",
+    "nodemailer": "^8.0.7",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^24.12.2",
+    "@types/nodemailer": "^8.0.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/supertest": "^7.2.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "supertest": "^7.2.2",
+    "tsx": "^4.21.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5"
+  }
+}

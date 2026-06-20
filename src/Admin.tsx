@@ -1,0 +1,485 @@
+import { useEffect, useMemo, useState } from 'react'
+import './App.css'
+
+type AnyRec = Record<string, any>
+type SizeChartRow = { size: string; chest: number; halfChest: number; length: number; rusSize: string }
+const PRODUCT_STATUS: [string, string][] = [['preorder', 'Предзаказ'], ['available', 'В наличии'], ['soon', 'Скоро'], ['soldout', 'Продано'], ['draft', 'Черновик']]
+const ORDER_STATUS: [string, string][] = [['new', 'Новый'], ['paid', 'Оплачен'], ['production', 'В производстве'], ['ready', 'Готов к отправке'], ['shipped', 'Отправлен'], ['cancelled', 'Отменён']]
+const money = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} ₽`
+const isPaid = (o: AnyRec) => o.paymentStatus === 'paid' || o.paymentStatus === 'manager'
+
+export default function Admin() {
+  const [token, setToken] = useState(() => localStorage.getItem('lin-admin-token') ?? '')
+  const [phone, setPhone] = useState('')
+  const [password, setPassword] = useState('')
+  const [err, setErr] = useState('')
+  const [tab, setTab] = useState<'dash' | 'products' | 'orders' | 'reviews' | 'promo'>('dash')
+  const [promos, setPromos] = useState<AnyRec[]>([])
+  const [promoCount, setPromoCount] = useState('20')
+  const [promoGift, setPromoGift] = useState('Подарок в посылке')
+  const [products, setProducts] = useState<AnyRec[]>([])
+  const [orders, setOrders] = useState<AnyRec[]>([])
+  const [reviews, setReviews] = useState<AnyRec[]>([])
+  const [summary, setSummary] = useState<AnyRec | null>(null)
+  const [heroImage, setHeroImage] = useState('')
+  const [heroTitle, setHeroTitle] = useState('')
+  const [orderSort, setOrderSort] = useState('new')
+  const [orderStatusF, setOrderStatusF] = useState('all')
+  const [orderPayF, setOrderPayF] = useState('all')
+  const [orderQ, setOrderQ] = useState('')
+  const [reconciling, setReconciling] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const headers = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` })
+
+  async function login() {
+    setErr('')
+    try {
+      const r = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, password }) })
+      if (!r.ok) { setErr('Неверный телефон или пароль'); return }
+      const d = await r.json(); setToken(d.token); localStorage.setItem('lin-admin-token', d.token)
+    } catch { setErr('API недоступен') }
+  }
+  function logout() { setToken(''); localStorage.removeItem('lin-admin-token') }
+
+  async function load() {
+    try {
+      const r = await fetch('/api/admin/bootstrap', { headers: headers() })
+      if (r.status === 401) { logout(); return }
+      const d = await r.json()
+      setProducts(Array.isArray(d.products) ? d.products : [])
+      setOrders(Array.isArray(d.orders) ? d.orders.slice().reverse() : [])
+      setSummary(d.analyticsSummary ?? null)
+      setHeroImage(d.settings?.hero?.image ?? '')
+      setHeroTitle(d.settings?.hero?.title ?? '')
+      const rr = await fetch('/api/admin/reviews', { headers: headers() })
+      if (rr.ok) setReviews(await rr.json())
+      const pr = await fetch('/api/admin/promo', { headers: headers() })
+      if (pr.ok) setPromos(await pr.json())
+    } catch { /* */ }
+  }
+  async function generatePromo() {
+    const count = Math.max(1, Math.min(1000, Number(promoCount) || 1))
+    setMsg('Генерирую промокоды…')
+    const r = await fetch('/api/admin/promo/generate', { method: 'POST', headers: headers(), body: JSON.stringify({ count, gift: promoGift.trim() || 'Подарок в посылке' }) })
+    setMsg(r.ok ? `✓ Создано ${count} промокодов` : '✗ Ошибка'); void load()
+  }
+  async function deletePromo(code: string) {
+    await fetch(`/api/admin/promo/${encodeURIComponent(code)}`, { method: 'DELETE', headers: headers() }); void load()
+  }
+  async function saveHero(patch: { image?: string; title?: string }) {
+    await fetch('/api/settings/hero', { method: 'PUT', headers: headers(), body: JSON.stringify(patch) })
+  }
+  function uploadHero(file: File) {
+    setMsg('Загружаю фото главного экрана…')
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const r = await fetch('/api/uploads', { method: 'POST', headers: headers(), body: JSON.stringify({ dataUrl: String(reader.result), filename: file.name }) })
+        if (!r.ok) { setMsg('✗ Ошибка загрузки'); return }
+        const { url } = await r.json()
+        setHeroImage(url)
+        await saveHero({ image: url })
+        setMsg('✓ Фото главного экрана обновлено')
+      } catch { setMsg('✗ API недоступен') }
+    }
+    reader.readAsDataURL(file)
+  }
+  useEffect(() => { if (token) void load() }, [token])
+
+  // ---- метрики дашборда ----
+  const stats = useMemo(() => {
+    const paid = orders.filter(isPaid)
+    const revenue = paid.reduce((s, o) => s + (Number(o.total) || 0), 0)
+    const pending = orders.filter((o) => o.paymentStatus === 'pending').length
+    const byStatus = new Map<string, number>()
+    const byProduct = new Map<string, { count: number; revenue: number; sizes: Map<string, number>; cities: Map<string, number> }>()
+    for (const o of orders) {
+      byStatus.set(String(o.status), (byStatus.get(String(o.status)) || 0) + 1)
+      const cur = byProduct.get(String(o.product)) || { count: 0, revenue: 0, sizes: new Map(), cities: new Map() }
+      cur.count++; if (isPaid(o)) cur.revenue += Number(o.total) || 0
+      const sz = String(o.size || '—'); cur.sizes.set(sz, (cur.sizes.get(sz) || 0) + 1)
+      const ct = String(o.city || '—'); cur.cities.set(ct, (cur.cities.get(ct) || 0) + 1)
+      byProduct.set(String(o.product), cur)
+    }
+    const top = [...byProduct.entries()].map(([name, v]) => ({
+      name, count: v.count, revenue: v.revenue,
+      sizes: [...v.sizes.entries()].sort((a, b) => b[1] - a[1]),
+      cities: [...v.cities.entries()].sort((a, b) => b[1] - a[1]),
+    })).sort((a, b) => b.count - a.count)
+    return { total: orders.length, paidCount: paid.length, revenue, avg: paid.length ? revenue / paid.length : 0, pending, byStatus: [...byStatus.entries()], top }
+  }, [orders])
+
+  // ---- продукты ----
+  function patchLocal(id: string, field: string, value: unknown) { setProducts((ps) => ps.map((p) => (p.id === id ? { ...p, [field]: value } : p))) }
+  async function saveProduct(p: AnyRec) {
+    setMsg('Сохраняю…')
+    try {
+      const r = await fetch(`/api/products/${p.id}`, { method: 'PATCH', headers: headers(), body: JSON.stringify({ name: p.name, price: Number(p.price) || 0, status: p.status, description: p.description, material: p.material, colors: p.colors ?? [], image: p.image, photos: p.photos ?? [], sizeChart: p.sizeChart ?? [], sizeNotes: p.sizeNotes ?? [], colorPhotos: p.colorPhotos ?? {} }) })
+      setMsg(r.ok ? `✓ Сохранено: ${p.name}` : '✗ Ошибка сохранения'); if (r.ok) void load()
+    } catch { setMsg('✗ API недоступен') }
+  }
+  function updateSizeRow(p: AnyRec, i: number, field: keyof SizeChartRow, value: string) {
+    const chart: SizeChartRow[] = [...((p.sizeChart as SizeChartRow[] | undefined) ?? [])]
+    const isText = field === 'size' || field === 'rusSize'
+    chart[i] = { ...chart[i], [field]: isText ? value : (Number(value) || 0) }
+    patchLocal(p.id, 'sizeChart', chart)
+  }
+  function addSizeRow(p: AnyRec) {
+    const chart: SizeChartRow[] = [...((p.sizeChart as SizeChartRow[] | undefined) ?? []), { size: '', chest: 0, halfChest: 0, length: 0, rusSize: '' }]
+    patchLocal(p.id, 'sizeChart', chart)
+  }
+  function removeSizeRow(p: AnyRec, i: number) {
+    const chart = ((p.sizeChart as SizeChartRow[] | undefined) ?? []).filter((_, idx) => idx !== i)
+    patchLocal(p.id, 'sizeChart', chart)
+  }
+  function uploadPhoto(p: AnyRec, file: File) {
+    setMsg('Загружаю фото…')
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const r = await fetch('/api/uploads', { method: 'POST', headers: headers(), body: JSON.stringify({ dataUrl: String(reader.result), filename: file.name }) })
+        if (!r.ok) { setMsg('✗ Ошибка загрузки'); return }
+        const { url } = await r.json()
+        setProducts((ps) => ps.map((x) => (x.id === p.id ? { ...x, image: url, photos: [...(x.photos ?? []), url] } : x)))
+        setMsg('✓ Фото загружено — нажми «Сохранить»')
+      } catch { setMsg('✗ API недоступен') }
+    }
+    reader.readAsDataURL(file)
+  }
+  function removePhoto(p: AnyRec, url: string) {
+    setProducts((ps) => ps.map((x) => (x.id === p.id ? { ...x, photos: (x.photos ?? []).filter((u: string) => u !== url), image: x.image === url ? ((x.photos ?? []).filter((u: string) => u !== url)[0] ?? '') : x.image } : x)))
+  }
+  function uploadColorPhoto(p: AnyRec, color: string, file: File) {
+    setMsg(`Загружаю фото для «${color}»…`)
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const r = await fetch('/api/uploads', { method: 'POST', headers: headers(), body: JSON.stringify({ dataUrl: String(reader.result), filename: file.name }) })
+        if (!r.ok) { setMsg('✗ Ошибка загрузки'); return }
+        const { url } = await r.json()
+        setProducts((ps) => ps.map((x) => {
+          if (x.id !== p.id) return x
+          const cp = { ...(x.colorPhotos ?? {}) }
+          cp[color] = [...(cp[color] ?? []), url]
+          return { ...x, colorPhotos: cp }
+        }))
+        setMsg('✓ Фото добавлено к цвету — нажми «Сохранить»')
+      } catch { setMsg('✗ API недоступен') }
+    }
+    reader.readAsDataURL(file)
+  }
+  function removeColorPhoto(p: AnyRec, color: string, url: string) {
+    setProducts((ps) => ps.map((x) => {
+      if (x.id !== p.id) return x
+      const cp = { ...(x.colorPhotos ?? {}) }
+      cp[color] = (cp[color] ?? []).filter((u: string) => u !== url)
+      return { ...x, colorPhotos: cp }
+    }))
+  }
+
+  // ---- заказы ----
+  async function patchOrder(id: string, body: AnyRec) { await fetch(`/api/orders/${id}`, { method: 'PATCH', headers: headers(), body: JSON.stringify(body) }); void load() }
+  async function deleteOrder(id: string) {
+    if (!window.confirm('Удалить заказ навсегда? Действие необратимо.')) return
+    setMsg('Удаляю заказ…')
+    await fetch(`/api/orders/${id}`, { method: 'DELETE', headers: headers() })
+    setMsg('✓ Заказ удалён'); void load()
+  }
+  async function reconcileOrders() {
+    setReconciling(true); setMsg('Сверяю оплаты с Точкой…')
+    try {
+      const r = await fetch('/api/admin/reconcile', { method: 'POST', headers: headers() })
+      const d = await r.json()
+      setMsg(r.ok ? `✓ Сверка: подтверждено оплат +${d.paid}, удалено неоплаченных ${d.deleted}` : '✗ Ошибка сверки')
+      void load()
+    } catch { setMsg('✗ API недоступен') } finally { setReconciling(false) }
+  }
+  const sortedOrders = useMemo(() => {
+    let arr = [...orders]
+    if (orderPayF === 'paid') arr = arr.filter(isPaid)
+    else if (orderPayF === 'unpaid') arr = arr.filter((o) => !isPaid(o))
+    if (orderStatusF !== 'all') arr = arr.filter((o) => String(o.status) === orderStatusF)
+    const q = orderQ.trim().toLowerCase()
+    if (q) arr = arr.filter((o) => [o.id, o.client, o.phone, o.product, o.city].some((v) => String(v ?? '').toLowerCase().includes(q)))
+    switch (orderSort) {
+      case 'old': return arr.reverse()
+      case 'unpaid': return arr.sort((a, b) => (isPaid(a) ? 1 : 0) - (isPaid(b) ? 1 : 0))
+      case 'paid': return arr.sort((a, b) => (isPaid(b) ? 1 : 0) - (isPaid(a) ? 1 : 0))
+      case 'amount': return arr.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0))
+      default: return arr
+    }
+  }, [orders, orderSort, orderPayF, orderStatusF, orderQ])
+  async function markPaid(id: string) { setMsg('Отмечаю оплату…'); await patchOrder(id, { paymentStatus: 'paid' }); setMsg('✓ Заказ отмечен оплаченным') }
+  async function createShipment(id: string) {
+    setMsg('Создаю отправление СДЭК…')
+    try {
+      const r = await fetch(`/api/orders/${id}/create-shipment`, { method: 'POST', headers: headers() })
+      const d = await r.json().catch(() => ({}))
+      setMsg(r.ok ? `✓ Отправление создано, трек: ${d.track || '—'}` : `✗ ${d.error || 'Ошибка СДЭК'}`); void load()
+    } catch { setMsg('✗ API недоступен') }
+  }
+  async function sendTrack(id: string) { const r = await fetch(`/api/orders/${id}/send-track`, { method: 'POST', headers: headers() }); setMsg(r.ok ? '✓ Трек отправлен клиенту' : '✗ Ошибка') }
+  async function approveReview(id: string) { await fetch(`/api/admin/reviews/${id}/approve`, { method: 'POST', headers: headers() }); void load() }
+  async function deleteReview(id: string) { await fetch(`/api/admin/reviews/${id}`, { method: 'DELETE', headers: headers() }); void load() }
+
+  if (!token) {
+    return (
+      <div className="adm-login">
+        <div className="adm-login-box">
+          <div className="brand" style={{ justifyContent: 'center', marginBottom: 20 }}><span className="hanzi">林</span><span className="word">LIN · АДМИН</span></div>
+          <div className="fields">
+            <input placeholder="Телефон" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <input placeholder="Пароль" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && login()} />
+            {err && <div className="hint err">{err}</div>}
+            <button className="btn primary full" onClick={login} type="button">Войти</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const periods = summary?.periods as Record<string, AnyRec> | undefined
+
+  return (
+    <div className="adm">
+      <header className="adm-head">
+        <div className="brand"><span className="hanzi">林</span><span className="word">LIN · АДМИН</span></div>
+        <div className="adm-tabs">
+          {([['dash', 'Дашборд'], ['products', `Товары (${products.length})`], ['orders', `Заказы (${orders.length})`], ['reviews', `Отзывы (${reviews.length})`], ['promo', `Промокоды (${promos.length})`]] as [typeof tab, string][]).map(([t, label]) => (
+            <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)} type="button">{label}</button>
+          ))}
+        </div>
+        <div className="adm-right"><a href="/" className="adm-link">↗ Сайт</a><button className="adm-link" onClick={logout} type="button">Выйти</button></div>
+      </header>
+
+      {msg && <div className="adm-msg" onClick={() => setMsg('')}>{msg} <span>✕</span></div>}
+
+      <div className="adm-body">
+        {tab === 'dash' && (
+          <>
+            <div className="adm-card adm-hero" style={{ marginBottom: 16 }}>
+              <h3 className="dash-h">Главный экран (hero)</h3>
+              <div className="adm-hero-row">
+                <div className="adm-hero-prev">{heroImage ? <img src={heroImage} alt="hero" /> : <span className="muted">Фото не задано — показывается фото товара</span>}</div>
+                <div className="adm-hero-ctl">
+                  <label className="adm-upload">{heroImage ? 'Заменить фото' : 'Загрузить фото'}<input type="file" accept="image/*" hidden onChange={(e) => e.target.files && e.target.files[0] && uploadHero(e.target.files[0])} /></label>
+                  {heroImage && <button type="button" className="btn ghost sm" onClick={async () => { setHeroImage(''); await saveHero({ image: '' }); setMsg('✓ Фото убрано — снова показывается фото товара') }}>Убрать фото</button>}
+                  <label className="adm-f"><span>Заголовок (пусто = название товара)</span><input value={heroTitle} onChange={(e) => setHeroTitle(e.target.value)} onBlur={() => saveHero({ title: heroTitle })} placeholder="Silent Wrath Top" /></label>
+                </div>
+              </div>
+            </div>
+            <div className="dash-grid">
+              <div className="dash-card"><div className="dash-num">{stats.total}</div><div className="dash-label">Заказов всего</div></div>
+              <div className="dash-card hl"><div className="dash-num">{money(stats.revenue)}</div><div className="dash-label">Выручка (оплачено)</div></div>
+              <div className="dash-card"><div className="dash-num">{stats.paidCount}</div><div className="dash-label">Оплачено</div></div>
+              <div className="dash-card"><div className="dash-num">{money(stats.avg)}</div><div className="dash-label">Средний чек</div></div>
+              <div className="dash-card"><div className="dash-num">{stats.pending}</div><div className="dash-label">Ждут оплаты</div></div>
+            </div>
+
+            {periods && (
+              <div className="adm-card" style={{ marginTop: 16 }}>
+                <h3 className="dash-h">Посещаемость сайта</h3>
+                <div className="dash-grid">
+                  {['day', 'week', 'month'].map((k) => {
+                    const pd = periods[k]
+                    return pd ? <div className="dash-card" key={k}><div className="dash-num">{pd.visitors ?? 0}</div><div className="dash-label">Уникальных · {pd.label ?? k}</div></div> : null
+                  })}
+                  <div className="dash-card"><div className="dash-num">{periods.week?.visits ?? 0}</div><div className="dash-label">Заходов · 7 дней</div></div>
+                  {summary?.conversionToday != null && <div className="dash-card"><div className="dash-num">{summary.conversionToday}%</div><div className="dash-label">Конверсия сегодня</div></div>}
+                </div>
+              </div>
+            )}
+
+            <div className="adm-card" style={{ marginTop: 16 }}>
+              <h3 className="dash-h">Заказы по товарам — что и где заказали</h3>
+              {stats.top.length === 0 ? <p className="muted">Нет данных</p> : stats.top.map((p) => (
+                <div className="dash-prod" key={p.name}>
+                  <div className="dash-prod-h"><b>{p.name}</b><span>{p.count} зак. · {money(p.revenue)}</span></div>
+                  <div className="dash-prod-sub"><span className="dash-prod-lbl">Размеры:</span> {p.sizes.map(([s, n]) => `${s} × ${n}`).join('   ') || '—'}</div>
+                  <div className="dash-prod-sub"><span className="dash-prod-lbl">Города:</span> {p.cities.slice(0, 7).map(([c, n]) => `${c} × ${n}`).join('   ') || '—'}</div>
+                </div>
+              ))}
+            </div>
+            <div className="adm-card" style={{ marginTop: 16 }}>
+              <h3 className="dash-h">Заказы по статусам</h3>
+              {stats.byStatus.map(([s, n]) => <div className="dash-row" key={s}><span>{s}</span><span>{n}</span></div>)}
+            </div>
+          </>
+        )}
+
+        {tab === 'products' && (
+          <div className="adm-grid">
+            {products.map((p) => (
+              <div className="adm-card" key={p.id}>
+                <div className="adm-photos">
+                  {(p.photos && p.photos.length ? p.photos : [p.image]).filter(Boolean).map((u: string) => (
+                    <div className={`adm-photo ${u === p.image ? 'main' : ''}`} key={u} onClick={() => patchLocal(p.id, 'image', u)} title="Сделать главным">
+                      <img src={u} alt="" />
+                      {u === p.image && <span className="adm-photo-main">★</span>}
+                      <button type="button" className="adm-photo-x" onClick={(e) => { e.stopPropagation(); removePhoto(p, u) }}>✕</button>
+                    </div>
+                  ))}
+                  <label className="adm-upload">+ фото<input type="file" accept="image/*" hidden onChange={(e) => e.target.files && e.target.files[0] && uploadPhoto(p, e.target.files[0])} /></label>
+                </div>
+                <div className="adm-photo-hint">Нажмите на фото, чтобы сделать его главным · ★ — текущее главное</div>
+                <div className="adm-prod-id">{p.id}</div>
+                <label className="adm-f"><span>Название</span><input value={p.name ?? ''} onChange={(e) => patchLocal(p.id, 'name', e.target.value)} /></label>
+                <div className="adm-row2">
+                  <label className="adm-f"><span>Цена ₽</span><input type="number" value={p.price ?? 0} onChange={(e) => patchLocal(p.id, 'price', e.target.value)} /></label>
+                  <label className="adm-f"><span>Статус</span><select value={p.status} onChange={(e) => patchLocal(p.id, 'status', e.target.value)}>{PRODUCT_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+                </div>
+                <label className="adm-f"><span>Цвета (через запятую)</span><input value={(p.colors ?? []).join(', ')} onChange={(e) => patchLocal(p.id, 'colors', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))} /></label>
+                <label className="adm-f"><span>Описание</span><textarea value={p.description ?? ''} onChange={(e) => patchLocal(p.id, 'description', e.target.value)} /></label>
+                <label className="adm-f"><span>Состав / детали</span><textarea value={p.material ?? ''} onChange={(e) => patchLocal(p.id, 'material', e.target.value)} /></label>
+
+                <div className="adm-sc">
+                  <span className="adm-sc-title">Размерная сетка (помощник подбора)</span>
+                  <div className="adm-sc-head"><span>Размер</span><span>Грудь</span><span>½ обхв.</span><span>Длина</span><span>Рос.</span><span></span></div>
+                  {((p.sizeChart as SizeChartRow[] | undefined) ?? []).map((row, i) => (
+                    <div className="adm-sc-row" key={i}>
+                      <input value={row.size} onChange={(e) => updateSizeRow(p, i, 'size', e.target.value)} placeholder="M" />
+                      <input type="number" value={row.chest || ''} onChange={(e) => updateSizeRow(p, i, 'chest', e.target.value)} placeholder="104" />
+                      <input type="number" value={row.halfChest || ''} onChange={(e) => updateSizeRow(p, i, 'halfChest', e.target.value)} placeholder="52" />
+                      <input type="number" value={row.length || ''} onChange={(e) => updateSizeRow(p, i, 'length', e.target.value)} placeholder="58" />
+                      <input value={row.rusSize} onChange={(e) => updateSizeRow(p, i, 'rusSize', e.target.value)} placeholder="44–46" />
+                      <button type="button" className="adm-sc-del" onClick={() => removeSizeRow(p, i)} title="Удалить">✕</button>
+                    </div>
+                  ))}
+                  <button type="button" className="adm-sc-add" onClick={() => addSizeRow(p)}>+ добавить размер</button>
+                  <label className="adm-f"><span>Памятка (каждая строка — отдельный пункт)</span><textarea rows={4} value={((p.sizeNotes as string[] | undefined) ?? []).join('\n')} onChange={(e) => patchLocal(p.id, 'sizeNotes', e.target.value.split('\n').map((s: string) => s.trim()).filter(Boolean))} placeholder={'Замеры по изделию в разложенном виде.\nИзмерьте обхват груди и сравните с таблицей.'} /></label>
+                </div>
+
+                {(p.colors ?? []).length > 0 && (
+                  <div className="adm-sc">
+                    <span className="adm-sc-title">Фото по цветам</span>
+                    {(p.colors as string[]).map((color) => (
+                      <div className="adm-cp-color" key={color}>
+                        <div className="adm-cp-name">{color}</div>
+                        <div className="adm-photos">
+                          {(((p.colorPhotos ?? {})[color] as string[] | undefined) ?? []).map((u: string) => (
+                            <div className="adm-photo" key={u}>
+                              <img src={u} alt="" />
+                              <button type="button" className="adm-photo-x" onClick={() => removeColorPhoto(p, color, u)}>✕</button>
+                            </div>
+                          ))}
+                          <label className="adm-upload">+ фото<input type="file" accept="image/*" hidden onChange={(e) => e.target.files && e.target.files[0] && uploadColorPhoto(p, color, e.target.files[0])} /></label>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="adm-photo-hint">У цвета со своими фото на витрине при его выборе показываются именно эти фото.</div>
+                  </div>
+                )}
+
+                <button className="btn primary sm" onClick={() => saveProduct(p)} type="button">Сохранить</button>
+              </div>
+            ))}
+            {!products.length && <p className="muted">Нет товаров.</p>}
+          </div>
+        )}
+
+        {tab === 'orders' && (
+          <div className="adm-orders">
+            <div className="adm-orders-bar">
+              <label className="adm-f inline"><span>Сортировка</span>
+                <select value={orderSort} onChange={(e) => setOrderSort(e.target.value)}>
+                  <option value="new">Сначала новые</option>
+                  <option value="old">Сначала старые</option>
+                  <option value="unpaid">Сначала неоплаченные</option>
+                  <option value="paid">Сначала оплаченные</option>
+                  <option value="amount">По сумме (больше → меньше)</option>
+                </select>
+              </label>
+              <label className="adm-f inline"><span>Статус</span>
+                <select value={orderStatusF} onChange={(e) => setOrderStatusF(e.target.value)}>
+                  <option value="all">Все</option>
+                  {ORDER_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </label>
+              <label className="adm-f inline"><span>Оплата</span>
+                <select value={orderPayF} onChange={(e) => setOrderPayF(e.target.value)}>
+                  <option value="all">Все</option>
+                  <option value="paid">Оплаченные</option>
+                  <option value="unpaid">Неоплаченные</option>
+                </select>
+              </label>
+              <input className="adm-order-search" placeholder="Поиск: имя, телефон, № заказа…" value={orderQ} onChange={(e) => setOrderQ(e.target.value)} />
+              <button className="btn ghost sm" onClick={reconcileOrders} disabled={reconciling} type="button">{reconciling ? 'Сверяю…' : '🔄 Проверить оплаты'}</button>
+              <span className="muted sm">{sortedOrders.length} из {orders.length}</span>
+            </div>
+            {sortedOrders.map((o) => {
+              const track = String(o.track ?? '')
+              const hasTrack = track && !track.startsWith('ожидает') && track !== 'через менеджера'
+              const paid = isPaid(o)
+              return (
+                <div className="adm-card adm-order" key={o.id}>
+                  <div className="adm-order-h">
+                    <div><b>{o.product}</b> · {[o.color, o.size].filter(Boolean).join(' · ')}<div className="muted sm">{o.id}</div></div>
+                    <div className="adm-order-sum">{money(Number(o.total ?? 0))}<span className={`adm-pay ${paid ? 'ok' : ''}`}>{paid ? 'оплачен' : 'не оплачен'}</span></div>
+                  </div>
+                  <div className="adm-order-meta">{o.client} · {o.phone} · {o.city} · {o.delivery}{o.pickupPointName ? ` · ${o.pickupPointName}` : ''}</div>
+                  <div className="adm-order-ctl">
+                    <label className="adm-f inline"><span>Статус</span><select value={ORDER_STATUS.some(([v]) => v === o.status) ? o.status : ''} onChange={(e) => patchOrder(o.id, { status: e.target.value })}><option value="" disabled>{o.status}</option>{ORDER_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+                    {!paid && <button className="btn sm" onClick={() => markPaid(o.id)} type="button">Отметить оплаченным</button>}
+                    {paid && o.deliveryProvider === 'cdek' && !hasTrack && <button className="btn sm" onClick={() => createShipment(o.id)} type="button">Создать отправление СДЭК</button>}
+                    {hasTrack && <span className="adm-track">трек: <b>{track}</b> <button className="btn ghost sm" onClick={() => sendTrack(o.id)} type="button">отправить клиенту</button></span>}
+                    {o.paymentUrl && !paid && <a className="btn ghost sm" href={o.paymentUrl} target="_blank" rel="noreferrer">ссылка оплаты</a>}
+                    {o.paymentUrl && paid && <a className="btn ghost sm" href={o.paymentUrl} target="_blank" rel="noreferrer">🧾 Чек Точки</a>}
+                    <button className="btn ghost sm adm-del-order" onClick={() => deleteOrder(o.id)} type="button">Удалить</button>
+                  </div>
+                </div>
+              )
+            })}
+            {!orders.length && <p className="muted">Заказов нет.</p>}
+          </div>
+        )}
+
+        {tab === 'reviews' && (
+          <div className="adm-orders">
+            {reviews.map((rv) => (
+              <div className="adm-card adm-order" key={rv.id}>
+                <div className="adm-order-h"><div><b>{'★'.repeat(Math.max(1, Math.min(5, Number(rv.rating) || 5)))}</b> {rv.name || rv.clientName}<div className="muted sm">{rv.approved ? 'одобрен' : 'на модерации'}</div></div></div>
+                <p style={{ fontSize: 14, lineHeight: 1.6, margin: '6px 0' }}>{rv.text}</p>
+                {rv.photoUrl ? <img src={rv.photoUrl} alt="" style={{ width: 90, height: 110, objectFit: 'cover', border: '1px solid var(--line)', marginBottom: 8 }} /> : null}
+                <div className="adm-order-ctl">
+                  {!rv.approved && <button className="btn primary sm" onClick={() => approveReview(rv.id)} type="button">Одобрить</button>}
+                  <button className="btn ghost sm" onClick={() => deleteReview(rv.id)} type="button">Удалить</button>
+                </div>
+              </div>
+            ))}
+            {!reviews.length && <p className="muted">Отзывов нет.</p>}
+          </div>
+        )}
+
+        {tab === 'promo' && (
+          <div>
+            <div className="adm-card" style={{ marginBottom: 16 }}>
+              <h3 className="dash-h">Сгенерировать промокоды</h3>
+              <div className="promo-gen">
+                <label className="adm-f"><span>Сколько</span><input type="number" value={promoCount} onChange={(e) => setPromoCount(e.target.value)} /></label>
+                <label className="adm-f"><span>Что за подарок</span><input value={promoGift} onChange={(e) => setPromoGift(e.target.value)} placeholder="Подарок в посылке" /></label>
+                <button className="btn primary sm" onClick={generatePromo} type="button">Создать</button>
+              </div>
+              <div className="muted sm" style={{ marginTop: 8 }}>Коды одноразовые. Покупатель вводит код при оформлении → в заказе отметится подарок, код станет «использован». Рассылка кодов подписчикам в ТГ-боте — следующим шагом.</div>
+            </div>
+            <div className="adm-card">
+              <h3 className="dash-h">Промокоды · {promos.filter((p) => !p.used).length} активных / {promos.filter((p) => p.used).length} использовано</h3>
+              {promos.length === 0 ? <p className="muted">Промокодов пока нет — создайте выше.</p> : (
+                <div className="promo-list">
+                  {[...promos].sort((a, b) => Number(a.used) - Number(b.used)).map((p) => (
+                    <div className={`promo-item ${p.used ? 'used' : ''}`} key={p.code}>
+                      <div className="promo-code">{p.code}</div>
+                      <div className="promo-gift">{p.gift}{p.sentToUsername ? ` · выдан @${p.sentToUsername}` : p.sentToChatId ? ` · выдан подписчику` : ''}</div>
+                      <div className="promo-status">{p.used ? `✓ использован${p.usedByClient ? ` · ${p.usedByClient}` : ''}` : 'активен'}</div>
+                      <button className="btn ghost sm" onClick={() => deletePromo(p.code)} type="button">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
