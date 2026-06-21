@@ -3,17 +3,23 @@ import './App.css'
 
 type AnyRec = Record<string, any>
 type SizeChartRow = { size: string; chest: number; halfChest: number; length: number; rusSize: string }
+type DropExpense = { id: string; name: string; amount: number; note?: string; createdAt: string }
+type DropFinanceConfig = { unitCost?: number; acquiringRate?: number; expenses?: DropExpense[] }
+type DropFinanceState = Record<string, DropFinanceConfig>
 const PRODUCT_STATUS: [string, string][] = [['preorder', 'Предзаказ'], ['available', 'В наличии'], ['soon', 'Скоро'], ['soldout', 'Продано'], ['draft', 'Черновик']]
 const ORDER_STATUS: [string, string][] = [['new', 'Новый'], ['paid', 'Оплачен'], ['production', 'В производстве'], ['ready', 'Готов к отправке'], ['shipped', 'Отправлен'], ['cancelled', 'Отменён']]
 const money = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} ₽`
 const isPaid = (o: AnyRec) => o.paymentStatus === 'paid' || o.paymentStatus === 'manager'
+const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
+const TAX_RATE = 4
+const DEFAULT_ACQUIRING_RATE = 2.7
 
 export default function Admin() {
   const [token, setToken] = useState(() => localStorage.getItem('lin-admin-token') ?? '')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
-  const [tab, setTab] = useState<'dash' | 'products' | 'orders' | 'reviews' | 'promo'>('dash')
+  const [tab, setTab] = useState<'dash' | 'finance' | 'products' | 'orders' | 'reviews' | 'promo'>('dash')
   const [promos, setPromos] = useState<AnyRec[]>([])
   const [promoCount, setPromoCount] = useState('20')
   const [promoGift, setPromoGift] = useState('Подарок в посылке')
@@ -23,6 +29,8 @@ export default function Admin() {
   const [summary, setSummary] = useState<AnyRec | null>(null)
   const [heroImage, setHeroImage] = useState('')
   const [heroTitle, setHeroTitle] = useState('')
+  const [dropFinance, setDropFinance] = useState<DropFinanceState>({})
+  const [expenseDraft, setExpenseDraft] = useState<Record<string, { name: string; amount: string; note: string }>>({})
   const [orderSort, setOrderSort] = useState('new')
   const [orderStatusF, setOrderStatusF] = useState('all')
   const [orderPayF, setOrderPayF] = useState('all')
@@ -52,6 +60,7 @@ export default function Admin() {
       setSummary(d.analyticsSummary ?? null)
       setHeroImage(d.settings?.hero?.image ?? '')
       setHeroTitle(d.settings?.hero?.title ?? '')
+      setDropFinance((d.siteConfig?.dropFinance ?? {}) as DropFinanceState)
       const rr = await fetch('/api/admin/reviews', { headers: headers() })
       if (rr.ok) setReviews(await rr.json())
       const pr = await fetch('/api/admin/promo', { headers: headers() })
@@ -109,6 +118,125 @@ export default function Admin() {
     })).sort((a, b) => b.count - a.count)
     return { total: orders.length, paidCount: paid.length, revenue, avg: paid.length ? revenue / paid.length : 0, pending, byStatus: [...byStatus.entries()], top }
   }, [orders])
+
+  const dropStats = useMemo(() => {
+    const productById = new Map(products.map((p) => [String(p.id), p]))
+    const drops = new Map<string, {
+      drop: string
+      products: Set<string>
+      orders: Set<string>
+      paidOrders: Set<string>
+      units: number
+      revenue: number
+      sizes: Map<string, number>
+      colors: Map<string, number>
+    }>()
+    const ensureDrop = (drop: string) => {
+      const key = drop || 'Без дропа'
+      let current = drops.get(key)
+      if (!current) {
+        current = { drop: key, products: new Set(), orders: new Set(), paidOrders: new Set(), units: 0, revenue: 0, sizes: new Map(), colors: new Map() }
+        drops.set(key, current)
+      }
+      return current
+    }
+    for (const p of products) ensureDrop(String(p.drop || 'Без дропа')).products.add(String(p.name || p.id))
+    for (const order of orders) {
+      const paid = isPaid(order)
+      const items = Array.isArray(order.items) && order.items.length
+        ? order.items
+        : [{ productId: order.productId, productName: order.product, size: order.size, color: order.color, qty: 1, price: Number(order.productTotal || order.total || 0) }]
+      const orderDrops = new Set<string>()
+      for (const item of items) {
+        const product = productById.get(String(item.productId))
+        const drop = String(product?.drop || 'Без дропа')
+        const row = ensureDrop(drop)
+        const qty = Math.max(1, Number(item.qty) || 1)
+        row.products.add(String(product?.name || item.productName || order.product || 'Товар'))
+        row.units += paid ? qty : 0
+        row.revenue += paid ? (Number(item.price) || 0) * qty : 0
+        const size = String(item.size || order.size || '—')
+        const color = String(item.color || order.color || '—')
+        row.sizes.set(size, (row.sizes.get(size) || 0) + qty)
+        row.colors.set(color, (row.colors.get(color) || 0) + qty)
+        orderDrops.add(drop)
+      }
+      for (const drop of orderDrops) {
+        const row = ensureDrop(drop)
+        row.orders.add(String(order.id))
+        if (paid) row.paidOrders.add(String(order.id))
+      }
+    }
+    return [...drops.values()].map((row) => {
+      const cfg = dropFinance[row.drop] ?? {}
+      const unitCost = Number(cfg.unitCost) || 0
+      const acquiringRate = cfg.acquiringRate == null ? DEFAULT_ACQUIRING_RATE : Number(cfg.acquiringRate) || 0
+      const expenses = Array.isArray(cfg.expenses) ? cfg.expenses : []
+      const manualExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+      const cogs = unitCost * row.units
+      const tax = row.revenue * TAX_RATE / 100
+      const acquiring = row.revenue * acquiringRate / 100
+      const profit = row.revenue - cogs - manualExpenses - tax - acquiring
+      return {
+        ...row,
+        products: [...row.products],
+        orderCount: row.orders.size,
+        paidOrderCount: row.paidOrders.size,
+        unitCost,
+        acquiringRate,
+        expenses,
+        manualExpenses,
+        cogs,
+        tax,
+        acquiring,
+        profit,
+        profitPerUnit: row.units ? profit / row.units : 0,
+        margin: row.revenue ? (profit / row.revenue) * 100 : 0,
+        sizes: [...row.sizes.entries()].sort((a, b) => b[1] - a[1]),
+        colors: [...row.colors.entries()].sort((a, b) => b[1] - a[1]),
+      }
+    }).sort((a, b) => b.revenue - a.revenue || b.units - a.units)
+  }, [dropFinance, orders, products])
+
+  const financeTotals = useMemo(() => {
+    return dropStats.reduce((sum, drop) => ({
+      revenue: sum.revenue + drop.revenue,
+      units: sum.units + drop.units,
+      orderCount: sum.orderCount + drop.orderCount,
+      paidOrderCount: sum.paidOrderCount + drop.paidOrderCount,
+      cogs: sum.cogs + drop.cogs,
+      manualExpenses: sum.manualExpenses + drop.manualExpenses,
+      tax: sum.tax + drop.tax,
+      acquiring: sum.acquiring + drop.acquiring,
+      profit: sum.profit + drop.profit,
+    }), { revenue: 0, units: 0, orderCount: 0, paidOrderCount: 0, cogs: 0, manualExpenses: 0, tax: 0, acquiring: 0, profit: 0 })
+  }, [dropStats])
+
+  function patchDropFinance(drop: string, patch: Partial<DropFinanceConfig>) {
+    setDropFinance((current) => ({ ...current, [drop]: { ...(current[drop] ?? {}), ...patch } }))
+  }
+  async function saveDropFinance(next = dropFinance) {
+    setMsg('Сохраняю финансы…')
+    const r = await fetch('/api/config', { method: 'PUT', headers: headers(), body: JSON.stringify({ dropFinance: next }) })
+    setMsg(r.ok ? '✓ Финансы сохранены' : '✗ Ошибка сохранения финансов')
+    if (r.ok) void load()
+  }
+  async function addDropExpense(drop: string) {
+    const draft = expenseDraft[drop] ?? { name: '', amount: '', note: '' }
+    const amount = Number(String(draft.amount).replace(',', '.')) || 0
+    if (!draft.name.trim() || amount <= 0) { setMsg('Укажи название и сумму расхода'); return }
+    const expenses = [...(dropFinance[drop]?.expenses ?? []), { id: newId(), name: draft.name.trim(), amount, note: draft.note.trim(), createdAt: new Date().toISOString() }]
+    const next = { ...dropFinance, [drop]: { ...(dropFinance[drop] ?? {}), expenses } }
+    setDropFinance(next)
+    setExpenseDraft((cur) => ({ ...cur, [drop]: { name: '', amount: '', note: '' } }))
+    await saveDropFinance(next)
+  }
+  async function removeDropExpense(drop: string, id: string) {
+    const expenses = (dropFinance[drop]?.expenses ?? []).filter((e) => e.id !== id)
+    const next = { ...dropFinance, [drop]: { ...(dropFinance[drop] ?? {}), expenses } }
+    setDropFinance(next)
+    await saveDropFinance(next)
+  }
 
   // ---- продукты ----
   function patchLocal(id: string, field: string, value: unknown) { setProducts((ps) => ps.map((p) => (p.id === id ? { ...p, [field]: value } : p))) }
@@ -246,7 +374,7 @@ export default function Admin() {
       <header className="adm-head">
         <div className="brand"><span className="hanzi">林</span><span className="word">LIN · АДМИН</span></div>
         <div className="adm-tabs">
-          {([['dash', 'Дашборд'], ['products', `Товары (${products.length})`], ['orders', `Заказы (${orders.length})`], ['reviews', `Отзывы (${reviews.length})`], ['promo', `Промокоды (${promos.length})`]] as [typeof tab, string][]).map(([t, label]) => (
+          {([['dash', 'Дашборд'], ['finance', 'Финансы'], ['products', `Товары (${products.length})`], ['orders', `Заказы (${orders.length})`], ['reviews', `Отзывы (${reviews.length})`], ['promo', `Промокоды (${promos.length})`]] as [typeof tab, string][]).map(([t, label]) => (
             <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)} type="button">{label}</button>
           ))}
         </div>
@@ -306,6 +434,85 @@ export default function Admin() {
               {stats.byStatus.map(([s, n]) => <div className="dash-row" key={s}><span>{s}</span><span>{n}</span></div>)}
             </div>
           </>
+        )}
+
+        {tab === 'finance' && (
+          <div className="adm-finance">
+            <div className="adm-card" style={{ marginBottom: 16 }}>
+              <h3 className="dash-h">Финансы по дропам</h3>
+              <div className="dash-grid">
+                <div className="dash-card hl"><div className="dash-num">{money(financeTotals.revenue)}</div><div className="dash-label">Выручка по товарам</div></div>
+                <div className="dash-card"><div className="dash-num">{financeTotals.units}</div><div className="dash-label">Продано единиц</div></div>
+                <div className="dash-card"><div className="dash-num">{financeTotals.paidOrderCount}</div><div className="dash-label">Оплаченных заказов</div></div>
+                <div className="dash-card"><div className="dash-num">{money(financeTotals.cogs)}</div><div className="dash-label">Себестоимость</div></div>
+                <div className="dash-card"><div className="dash-num">{money(financeTotals.manualExpenses)}</div><div className="dash-label">Доп. расходы</div></div>
+                <div className="dash-card"><div className="dash-num">{money(financeTotals.tax)}</div><div className="dash-label">Налог 4%</div></div>
+                <div className="dash-card"><div className="dash-num">{money(financeTotals.acquiring)}</div><div className="dash-label">Эквайринг</div></div>
+                <div className="dash-card hl"><div className="dash-num">{money(financeTotals.profit)}</div><div className="dash-label">Прибыль общая</div></div>
+              </div>
+              <p className="muted sm" style={{ marginTop: 10 }}>Считаем только оплаченные заказы и заказы через менеджера. Доставка не входит в выручку дропа. Налог считается как 4% от выручки.</p>
+            </div>
+
+            {dropStats.length === 0 ? <p className="muted">Нет дропов для расчета.</p> : dropStats.map((drop) => {
+              const draft = expenseDraft[drop.drop] ?? { name: '', amount: '', note: '' }
+              return (
+                <div className="adm-card drop-fin" key={drop.drop}>
+                  <div className="drop-fin-head">
+                    <div>
+                      <h3>{drop.drop}</h3>
+                      <p>{drop.products.join(' · ') || 'Товары не указаны'}</p>
+                    </div>
+                    <div className={`drop-profit ${drop.profit >= 0 ? 'ok' : 'bad'}`}>{money(drop.profit)}</div>
+                  </div>
+
+                  <div className="drop-metrics">
+                    <div><span>Заказы</span><b>{drop.orderCount}</b></div>
+                    <div><span>Оплачено</span><b>{drop.paidOrderCount}</b></div>
+                    <div><span>Единиц</span><b>{drop.units}</b></div>
+                    <div><span>Выручка</span><b>{money(drop.revenue)}</b></div>
+                    <div><span>Себес.</span><b>{money(drop.cogs)}</b></div>
+                    <div><span>Расходы</span><b>{money(drop.manualExpenses)}</b></div>
+                    <div><span>Налог 4%</span><b>{money(drop.tax)}</b></div>
+                    <div><span>Эквайринг {drop.acquiringRate}%</span><b>{money(drop.acquiring)}</b></div>
+                    <div><span>Прибыль / ед.</span><b>{money(drop.profitPerUnit)}</b></div>
+                    <div><span>Маржа</span><b>{Math.round(drop.margin)}%</b></div>
+                  </div>
+
+                  <div className="drop-fin-controls">
+                    <label className="adm-f"><span>Себестоимость 1 единицы, ₽</span><input type="number" value={dropFinance[drop.drop]?.unitCost ?? ''} onChange={(e) => patchDropFinance(drop.drop, { unitCost: Number(e.target.value) || 0 })} onBlur={() => saveDropFinance()} placeholder="0" /></label>
+                    <label className="adm-f"><span>Эквайринг, %</span><input type="number" step="0.1" value={dropFinance[drop.drop]?.acquiringRate ?? DEFAULT_ACQUIRING_RATE} onChange={(e) => patchDropFinance(drop.drop, { acquiringRate: Number(e.target.value) || 0 })} onBlur={() => saveDropFinance()} placeholder={String(DEFAULT_ACQUIRING_RATE)} /></label>
+                    <button className="btn ghost sm" type="button" onClick={() => saveDropFinance()}>Сохранить расчет</button>
+                  </div>
+
+                  <div className="drop-breakdown">
+                    <div><span>Размеры:</span> {drop.sizes.map(([s, n]) => `${s} × ${n}`).join('   ') || '—'}</div>
+                    <div><span>Цвета:</span> {drop.colors.map(([c, n]) => `${c} × ${n}`).join('   ') || '—'}</div>
+                  </div>
+
+                  <div className="drop-expenses">
+                    <h4>Расходы дропа</h4>
+                    {(drop.expenses ?? []).length === 0 ? <p className="muted sm">Расходов пока нет.</p> : (
+                      <div className="drop-exp-list">
+                        {drop.expenses.map((expense) => (
+                          <div className="drop-exp" key={expense.id}>
+                            <div><b>{expense.name}</b>{expense.note ? <span>{expense.note}</span> : null}</div>
+                            <strong>{money(Number(expense.amount) || 0)}</strong>
+                            <button type="button" onClick={() => removeDropExpense(drop.drop, expense.id)}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="drop-exp-add">
+                      <input placeholder="Расход: ткань, пошив, съемка…" value={draft.name} onChange={(e) => setExpenseDraft((cur) => ({ ...cur, [drop.drop]: { ...draft, name: e.target.value } }))} />
+                      <input placeholder="Сумма ₽" inputMode="decimal" value={draft.amount} onChange={(e) => setExpenseDraft((cur) => ({ ...cur, [drop.drop]: { ...draft, amount: e.target.value } }))} />
+                      <input placeholder="Комментарий" value={draft.note} onChange={(e) => setExpenseDraft((cur) => ({ ...cur, [drop.drop]: { ...draft, note: e.target.value } }))} />
+                      <button className="btn primary sm" type="button" onClick={() => addDropExpense(drop.drop)}>Добавить</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
 
         {tab === 'products' && (

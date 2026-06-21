@@ -409,6 +409,36 @@ em { font-style: normal; }
 .dash-row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .dash-row span:last-child { color: var(--dim); white-space: nowrap; }
 
+/* finance dashboard */
+.adm-finance { display: flex; flex-direction: column; gap: 16px; }
+.drop-fin { display: flex; flex-direction: column; gap: 16px; }
+.drop-fin-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.drop-fin-head h3 { font-size: 20px; margin-bottom: 5px; }
+.drop-fin-head p { color: var(--dim); font-size: 13px; line-height: 1.45; }
+.drop-profit { font-size: 26px; font-weight: 800; white-space: nowrap; }
+.drop-profit.ok { color: #1f7a3a; }
+.drop-profit.bad { color: #b42318; }
+.drop-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
+.drop-metrics > div { border: 1px solid var(--line); padding: 12px; min-height: 70px; }
+.drop-metrics span { display: block; color: var(--dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+.drop-metrics b { font-size: 17px; }
+.drop-fin-controls { display: grid; grid-template-columns: minmax(180px, 260px) minmax(140px, 200px) auto; gap: 10px; align-items: end; }
+.drop-fin-controls .adm-f { margin-bottom: 0; }
+.drop-breakdown { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--dim); line-height: 1.55; }
+.drop-breakdown span { color: var(--fg); font-weight: 700; }
+.drop-expenses { border-top: 1px solid var(--line); padding-top: 14px; }
+.drop-expenses h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+.drop-exp-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.drop-exp { display: grid; grid-template-columns: minmax(0, 1fr) auto 24px; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.drop-exp b { display: block; font-size: 14px; }
+.drop-exp span { display: block; margin-top: 2px; color: var(--dim); font-size: 12px; }
+.drop-exp strong { white-space: nowrap; }
+.drop-exp button { width: 24px; height: 24px; border: none; background: transparent; color: var(--dim); cursor: pointer; font-size: 16px; }
+.drop-exp button:hover { color: var(--fg); }
+.drop-exp-add { display: grid; grid-template-columns: minmax(180px, 1.3fr) 120px minmax(160px, 1fr) auto; gap: 8px; align-items: center; }
+.drop-exp-add input { width: 100%; font: inherit; font-size: 13px; border: 1px solid var(--line2); padding: 10px 11px; outline: none; }
+.drop-exp-add input:focus { border-color: var(--fg); }
+
 /* product photos */
 .adm-photos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .adm-photo { position: relative; width: 56px; height: 70px; border: 1px solid var(--line2); }
@@ -526,6 +556,11 @@ em { font-style: normal; }
   .promo-item .promo-gift { grid-column: 1 / -1; }
   .promo-code { font-size: 13px; }
   .dash-prod-h { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .drop-fin-head { flex-direction: column; gap: 8px; }
+  .drop-profit { font-size: 24px; }
+  .drop-metrics { grid-template-columns: 1fr 1fr; }
+  .drop-fin-controls { grid-template-columns: 1fr; align-items: stretch; }
+  .drop-exp-add { grid-template-columns: 1fr; }
   .city-drop { max-height: 200px; }
 }
 
