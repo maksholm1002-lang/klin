@@ -269,6 +269,11 @@ export default function App() {
     const arr = (p.photos && p.photos.length ? p.photos : [p.image]).filter(Boolean)
     return arr.length ? arr : [p.image]
   }
+  function productCover(p: Product): string {
+    const color = p.colors?.[0]
+    const colorPhotos = color && p.colorPhotos ? p.colorPhotos[color] : undefined
+    return colorPhotos?.find(Boolean) || p.image
+  }
 
   // legal
   async function openLegal(id: string, label: string) {
@@ -486,7 +491,7 @@ export default function App() {
   }
 
   const heroProduct = useMemo(() => products.find((p) => p.status === 'preorder' && p.image) ?? products.find((p) => p.image) ?? null, [products])
-  const heroSrc = heroImage || heroProduct?.image || ''
+  const heroSrc = heroImage || (heroProduct ? productCover(heroProduct) : '')
   const sfChart = sfProduct?.sizeChart ?? []
   const sfResult = useMemo(() => recommendTopSize(sfChart, Number(sfChest) || 0), [sfChart, sfChest])
   const openSizeFinder = (p: Product | null) => { setSfProduct(p); setSfChest(''); setSizeFinderOpen(true) }
@@ -533,7 +538,7 @@ export default function App() {
             <div className="grid">
               {products.map((p) => (
                 <button className="card" key={p.id} onClick={() => openProduct(p)} type="button">
-                  <div className="card-img"><img src={p.image} alt={p.name} decoding="async" loading="lazy" />{STATUS_LABEL[p.status] && <span className={`badge st-${p.status}`}>{STATUS_LABEL[p.status]}</span>}</div>
+                  <div className="card-img"><img src={productCover(p)} alt={p.name} decoding="async" loading="lazy" />{STATUS_LABEL[p.status] && <span className={`badge st-${p.status}`}>{STATUS_LABEL[p.status]}</span>}</div>
                   <div className="card-meta">
                     <div><div className="card-name">{p.name}</div><div className="card-sub">{p.drop}</div></div>
                     <div className="card-price">{p.price > 0 ? money(p.price) : 'скоро'}</div>
