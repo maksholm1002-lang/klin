@@ -17,6 +17,7 @@ const SITE_URL = 'https://www.linasia.ru/'
 const UTM_LINKS = [
   { name: 'TikTok', url: `${SITE_URL}?utm_source=tiktok&utm_medium=social&utm_campaign=drop02_top` },
   { name: 'Trends', url: `${SITE_URL}?utm_source=trends&utm_medium=social&utm_campaign=drop02_top` },
+  { name: 'Instagram', url: `${SITE_URL}?utm_source=instagram&utm_medium=social&utm_campaign=drop02_top` },
 ]
 
 export default function Admin() {
