@@ -13,6 +13,11 @@ const isPaid = (o: AnyRec) => o.paymentStatus === 'paid' || o.paymentStatus === 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
 const TAX_RATE = 4
 const DEFAULT_ACQUIRING_RATE = 2.7
+const SITE_URL = 'https://www.linasia.ru/'
+const UTM_LINKS = [
+  { name: 'TikTok', url: `${SITE_URL}?utm_source=tiktok&utm_medium=social&utm_campaign=drop02_top` },
+  { name: 'Trends', url: `${SITE_URL}?utm_source=trends&utm_medium=social&utm_campaign=drop02_top` },
+]
 
 export default function Admin() {
   const [token, setToken] = useState(() => localStorage.getItem('lin-admin-token') ?? '')
@@ -440,6 +445,33 @@ export default function Admin() {
                   <div className="dash-card"><div className="dash-num">{periods.week?.visits ?? 0}</div><div className="dash-label">Заходов · 7 дней</div></div>
                   {summary?.conversionToday != null && <div className="dash-card"><div className="dash-num">{summary.conversionToday}%</div><div className="dash-label">Конверсия сегодня</div></div>}
                 </div>
+              </div>
+            )}
+
+            <div className="adm-card" style={{ marginTop: 16 }}>
+              <h3 className="dash-h">UTM-ссылки для рекламы</h3>
+              <div className="utm-links">
+                {UTM_LINKS.map((link) => (
+                  <a className="utm-link" key={link.name} href={link.url} target="_blank" rel="noreferrer">
+                    <b>{link.name}</b>
+                    <span>{link.url}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {periods?.week?.sources && (
+              <div className="adm-card" style={{ marginTop: 16 }}>
+                <h3 className="dash-h">Источники по UTM · 7 дней</h3>
+                <div className="source-row head"><div>Источник</div><div>Люди</div><div>Заходы</div><div>Корзина</div></div>
+                {periods.week.sources.length === 0 ? <p className="muted">Пока нет UTM-переходов.</p> : periods.week.sources.map((row: AnyRec, i: number) => (
+                  <div className="source-row" key={`${row.source}-${row.campaign}-${i}`}>
+                    <div><b>{row.source || 'direct'}</b>{row.campaign ? <span>{row.campaign}</span> : null}</div>
+                    <div>{row.visitors ?? 0}</div>
+                    <div>{row.visits ?? 0}</div>
+                    <div>{row.cartAdds ?? 0}</div>
+                  </div>
+                ))}
               </div>
             )}
 

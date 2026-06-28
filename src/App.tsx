@@ -45,6 +45,7 @@ const cdekTrackUrl = (t: string) => `https://www.cdek.ru/ru/tracking?order_id=${
 const money = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} ₽`
 const dolyamePart = (n: number) => Math.ceil(Math.max(0, n) / 4)
 const TG = 'lin_asia'
+const UTM_STORAGE = 'lin-utm'
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || 'https://linasia.ru').replace(/\/$/, '')
 const assetUrl = (url?: string) => {
   if (!url) return ''
@@ -93,6 +94,24 @@ const createVisitorId = () => {
     if (uuid) return uuid
   } catch { /* no-op */ }
   return String(Date.now()) + Math.random().toString(36).slice(2)
+}
+const currentUtm = () => {
+  const params = new URLSearchParams(window.location.search)
+  const hasUtm = ['utm_source', 'utm_medium', 'utm_campaign'].some((key) => params.has(key))
+  if (hasUtm) {
+    const utm = {
+      utmSource: params.get('utm_source')?.slice(0, 80) || '',
+      utmMedium: params.get('utm_medium')?.slice(0, 80) || '',
+      utmCampaign: params.get('utm_campaign')?.slice(0, 120) || '',
+    }
+    safeStorage.set(UTM_STORAGE, JSON.stringify(utm))
+    return utm
+  }
+  try {
+    const saved = safeStorage.get(UTM_STORAGE)
+    if (saved) return JSON.parse(saved) as { utmSource?: string; utmMedium?: string; utmCampaign?: string }
+  } catch { /* ignore broken storage values */ }
+  return { utmSource: '', utmMedium: '', utmCampaign: '' }
 }
 
 // ---------- Карта ПВЗ (leaflet) ----------
@@ -213,6 +232,7 @@ export default function App() {
   // legal / cookie
   const [legal, setLegal] = useState<{ label: string; text: string } | null>(null)
   const [cookieOk, setCookieOk] = useState(() => safeStorage.get('lin-cookie-ok') === '1')
+  const [tgPrompt, setTgPrompt] = useState(() => safeStorage.get('lin-tg-prompt') !== 'closed')
 
   useEffect(() => {
     const syncAdminRoute = () => {
@@ -253,7 +273,7 @@ export default function App() {
       try {
         let vid = safeStorage.get('lin-visitor-id')
         if (!vid) { vid = (createVisitorId()); safeStorage.set('lin-visitor-id', vid) }
-        fetch('/api/analytics/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, body: JSON.stringify({ type: 'visit', visitorId: vid, path: location.pathname }) }).catch(() => {})
+        fetch('/api/analytics/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, body: JSON.stringify({ type: 'visit', visitorId: vid, path: `${location.pathname}${location.search}`, ...currentUtm() }) }).catch(() => {})
       } catch { /* no-op */ }
     }, 1600)
   }, [])
@@ -361,7 +381,7 @@ export default function App() {
     })
     try {
       const visitorId = safeStorage.get('lin-visitor-id') || ''
-      if (visitorId) fetch('/api/analytics/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'cart_add', visitorId, productId: active.id, path: location.pathname }) }).catch(() => {})
+      if (visitorId) fetch('/api/analytics/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'cart_add', visitorId, productId: active.id, path: `${location.pathname}${location.search}`, ...currentUtm() }) }).catch(() => {})
     } catch { /* no-op */ }
     setOrderMsg(''); setQuote(null); setPickCode(''); setPointSearch(''); setAgree(false); setCheckoutOpen(true)
   }
@@ -660,6 +680,17 @@ export default function App() {
         </div>
         <div className="ft-copy">© {new Date().getFullYear()} LIN</div>
       </footer>
+
+      {tgPrompt && (
+        <div className="tg-prompt">
+          <button className="tg-prompt-x" type="button" aria-label="Закрыть" onClick={() => { safeStorage.set('lin-tg-prompt', 'closed'); setTgPrompt(false) }}>✕</button>
+          <div>
+            <b>LIN в Telegram</b>
+            <span>Анонсы дропов, наличие размеров и быстрые ответы.</span>
+          </div>
+          <a className="btn sm primary" href={`https://t.me/${TG}`} target="_blank" rel="noreferrer">Подписаться</a>
+        </div>
+      )}
 
       {/* Оформление */}
       {checkoutOpen && checkoutItems.length > 0 && (
