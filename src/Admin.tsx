@@ -36,6 +36,7 @@ export default function Admin() {
   const [orderPayF, setOrderPayF] = useState('all')
   const [orderQ, setOrderQ] = useState('')
   const [reconciling, setReconciling] = useState(false)
+  const [dragPhoto, setDragPhoto] = useState<{ productId: string; url: string; color?: string } | null>(null)
   const [msg, setMsg] = useState('')
 
   const headers = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` })
@@ -305,6 +306,29 @@ export default function Admin() {
       return { ...x, colorPhotos: cp }
     }))
   }
+  function reorderPhoto(p: AnyRec, targetUrl: string, color?: string) {
+    if (!dragPhoto || dragPhoto.productId !== p.id || dragPhoto.color !== color || dragPhoto.url === targetUrl) return
+    setProducts((ps) => ps.map((x) => {
+      if (x.id !== p.id) return x
+      const current = color
+        ? [ ...(((x.colorPhotos ?? {})[color] as string[] | undefined) ?? []) ]
+        : [ ...((((x.photos as string[] | undefined) ?? []).length ? (x.photos as string[]) : [x.image]).filter(Boolean)) ]
+      const from = current.indexOf(dragPhoto.url)
+      const to = current.indexOf(targetUrl)
+      if (from < 0 || to < 0) return x
+      const nextPhotos = [...current]
+      const [moved] = nextPhotos.splice(from, 1)
+      nextPhotos.splice(to, 0, moved)
+      if (color) {
+        const cp = { ...(x.colorPhotos ?? {}), [color]: nextPhotos }
+        const isFirstColor = color === ((x.colors ?? [])[0] ?? '')
+        return { ...x, colorPhotos: cp, ...(isFirstColor ? { image: nextPhotos[0], photos: nextPhotos } : {}) }
+      }
+      return { ...x, photos: nextPhotos, image: nextPhotos[0] ?? x.image }
+    }))
+    setDragPhoto(null)
+    setMsg('✓ Порядок фото изменён — нажми «Сохранить»')
+  }
 
   // ---- заказы ----
   async function patchOrder(id: string, body: AnyRec) { await fetch(`/api/orders/${id}`, { method: 'PATCH', headers: headers(), body: JSON.stringify(body) }); void load() }
@@ -521,7 +545,16 @@ export default function Admin() {
               <div className="adm-card" key={p.id}>
                 <div className="adm-photos">
                   {(p.photos && p.photos.length ? p.photos : [p.image]).filter(Boolean).map((u: string) => (
-                    <div className={`adm-photo ${u === p.image ? 'main' : ''}`} key={u} onClick={() => patchLocal(p.id, 'image', u)} title="Сделать главным">
+                    <div
+                      className={`adm-photo ${u === p.image ? 'main' : ''}`}
+                      key={u}
+                      draggable
+                      onClick={() => patchLocal(p.id, 'image', u)}
+                      onDragStart={() => setDragPhoto({ productId: p.id, url: u })}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => { e.preventDefault(); reorderPhoto(p, u) }}
+                      title="Перетащите фото в начало или нажмите, чтобы сделать главным"
+                    >
                       <img src={u} alt="" />
                       {u === p.image && <span className="adm-photo-main">★</span>}
                       <button type="button" className="adm-photo-x" onClick={(e) => { e.stopPropagation(); removePhoto(p, u) }}>✕</button>
@@ -529,7 +562,7 @@ export default function Admin() {
                   ))}
                   <label className="adm-upload">+ фото<input type="file" accept="image/*" hidden onChange={(e) => e.target.files && e.target.files[0] && uploadPhoto(p, e.target.files[0])} /></label>
                 </div>
-                <div className="adm-photo-hint">Нажмите на фото, чтобы сделать его главным · ★ — текущее главное</div>
+                <div className="adm-photo-hint">Перетащите фото в нужный порядок: первое станет главным · можно просто нажать на фото · ★ — текущее главное</div>
                 <div className="adm-prod-id">{p.id}</div>
                 <label className="adm-f"><span>Название</span><input value={p.name ?? ''} onChange={(e) => patchLocal(p.id, 'name', e.target.value)} /></label>
                 <div className="adm-row2">
@@ -564,9 +597,18 @@ export default function Admin() {
                       <div className="adm-cp-color" key={color}>
                         <div className="adm-cp-name">{color}</div>
                         <div className="adm-photos">
-                          {(((p.colorPhotos ?? {})[color] as string[] | undefined) ?? []).map((u: string) => (
-                            <div className="adm-photo" key={u}>
+                          {(((p.colorPhotos ?? {})[color] as string[] | undefined) ?? []).map((u: string, i: number) => (
+                            <div
+                              className={`adm-photo ${i === 0 ? 'main' : ''}`}
+                              key={u}
+                              draggable
+                              onDragStart={() => setDragPhoto({ productId: p.id, url: u, color })}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => { e.preventDefault(); reorderPhoto(p, u, color) }}
+                              title="Перетащите фото в нужный порядок"
+                            >
                               <img src={u} alt="" />
+                              {i === 0 && <span className="adm-photo-main">1</span>}
                               <button type="button" className="adm-photo-x" onClick={() => removeColorPhoto(p, color, u)}>✕</button>
                             </div>
                           ))}
@@ -574,7 +616,7 @@ export default function Admin() {
                         </div>
                       </div>
                     ))}
-                    <div className="adm-photo-hint">У цвета со своими фото на витрине при его выборе показываются именно эти фото.</div>
+                    <div className="adm-photo-hint">У цвета со своими фото на витрине показываются именно эти фото. Перетащите фото: первое в цвете станет обложкой этого цвета.</div>
                   </div>
                 )}
 

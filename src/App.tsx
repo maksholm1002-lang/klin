@@ -490,8 +490,16 @@ export default function App() {
     setPlacing(false)
   }
 
-  const heroProduct = useMemo(() => products.find((p) => p.status === 'preorder' && p.image) ?? products.find((p) => p.image) ?? null, [products])
+  const heroProduct = useMemo(() => {
+    const activeProducts = products.filter((p) => p.status !== 'soldout' && p.status !== 'draft' && p.image)
+    return activeProducts.find((p) => p.status === 'available')
+      ?? activeProducts.find((p) => p.status === 'preorder')
+      ?? activeProducts.find((p) => p.status === 'soon')
+      ?? products.find((p) => p.image)
+      ?? null
+  }, [products])
   const heroSrc = heroImage || (heroProduct ? productCover(heroProduct) : '')
+  const heroCta = heroProduct?.status === 'available' ? 'В наличии' : heroProduct?.status === 'preorder' ? 'Предзаказ' : 'К товару'
   const sfChart = sfProduct?.sizeChart ?? []
   const sfResult = useMemo(() => recommendTopSize(sfChart, Number(sfChest) || 0), [sfChart, sfChest])
   const openSizeFinder = (p: Product | null) => { setSfProduct(p); setSfChest(''); setSizeFinderOpen(true) }
@@ -526,7 +534,7 @@ export default function App() {
                 <span className="hero-kicker">Новый дроп</span>
                 <h1 className="hero-title">{heroTitle || heroProduct.name}</h1>
                 <div className="hero-actions">
-                  <button className="btn light" onClick={() => openProduct(heroProduct)} type="button">Предзаказ</button>
+                  <button className="btn light" onClick={() => openProduct(heroProduct)} type="button">{heroCta}</button>
                   {(heroProduct.sizeChart?.length ?? 0) > 0 && <button className="hero-size-link" onClick={() => openSizeFinder(heroProduct)} type="button">Подобрать размер</button>}
                 </div>
               </div>
