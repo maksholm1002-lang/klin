@@ -491,6 +491,7 @@ export default function App() {
   const sfResult = useMemo(() => recommendTopSize(sfChart, Number(sfChest) || 0), [sfChart, sfChest])
   const openSizeFinder = (p: Product | null) => { setSfProduct(p); setSfChest(''); setSizeFinderOpen(true) }
   const colorList = active?.colors ?? []
+  const modelNote = active?.sizeNotes?.find((note) => /На модели размер/i.test(note)) ?? ''
 
   // ====================================================
   if (view === 'admin') return <Admin />
@@ -597,6 +598,7 @@ export default function App() {
               <div className="p-price">{active.price > 0 ? money(active.price) : 'Цена скоро'}</div>
               {active.price > 0 && <div className="dolyame-note">Долями: 4 платежа по {money(dolyamePart(active.price))}</div>}
               <p className="p-desc">{active.description}</p>
+              {modelNote && <div className="p-model-note">{modelNote}</div>}
 
               {active.status === 'preorder' && (
                 <div className="p-preorder">

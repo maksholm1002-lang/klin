@@ -96,7 +96,7 @@ em { font-style: normal; }
 .back:hover { color: var(--fg); }
 .product-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; }
 .p-main { aspect-ratio: 3/4; overflow: hidden; background: var(--bg2); position: relative; }
-.p-main img { width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; touch-action: pan-y; }
+.p-main img { width: 100%; height: 100%; object-fit: contain; object-position: center; user-select: none; -webkit-user-drag: none; touch-action: pan-y; }
 .p-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border: none; background: rgba(255,255,255,.85); color: #111; font-size: 24px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,.18); transition: background .15s; z-index: 2; }
 .p-arrow.left { left: 12px; }
 .p-arrow.right { right: 12px; }
@@ -114,6 +114,7 @@ em { font-style: normal; }
 .p-price { font-size: 20px; font-weight: 600; margin-bottom: 24px; }
 .dolyame-note { margin: -14px 0 22px; color: var(--dim); font-size: 13px; line-height: 1.5; }
 .p-desc { color: #555; line-height: 1.7; margin-bottom: 30px; font-size: 15px; }
+.p-model-note { margin: -16px 0 28px; padding: 11px 13px; background: var(--bg2); border-left: 2px solid var(--fg); color: #333; font-size: 13px; line-height: 1.55; }
 .p-block { margin-bottom: 26px; }
 .p-label { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin-bottom: 12px; }
 .p-label em { color: var(--fg); }
