@@ -10,6 +10,16 @@ const PRODUCT_STATUS: [string, string][] = [['preorder', 'Предзаказ'], 
 const ORDER_STATUS: [string, string][] = [['new', 'Новый'], ['paid', 'Оплачен'], ['production', 'В производстве'], ['ready', 'Готов к отправке'], ['shipped', 'Отправлен'], ['cancelled', 'Отменён']]
 const money = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} ₽`
 const isPaid = (o: AnyRec) => o.paymentStatus === 'paid' || o.paymentStatus === 'manager'
+const paymentProvider = (o: AnyRec) => {
+  const url = String(o.paymentUrl ?? '')
+  if (url.includes('dolyame')) return 'Долями'
+  if (url.includes('tochka') || url.includes('enter.tochka') || url.includes('payment-link')) return 'Точка'
+  if (o.paymentStatus === 'manager') return 'Менеджер'
+  const events = Array.isArray(o.integrationEvents) ? o.integrationEvents : []
+  if (events.some((e: AnyRec) => e.service === 'dolyame')) return 'Долями'
+  if (events.some((e: AnyRec) => e.service === 'tochka')) return 'Точка'
+  return 'оплата'
+}
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
 const TAX_RATE = 4
 const DEFAULT_ACQUIRING_RATE = 2.7
@@ -693,11 +703,12 @@ export default function Admin() {
               const track = String(o.track ?? '')
               const hasTrack = track && !track.startsWith('ожидает') && track !== 'через менеджера'
               const paid = isPaid(o)
+              const provider = paymentProvider(o)
               return (
                 <div className="adm-card adm-order" key={o.id}>
                   <div className="adm-order-h">
                     <div><b>{o.product}</b> · {[o.color, o.size].filter(Boolean).join(' · ')}<div className="muted sm">{o.id}</div></div>
-                    <div className="adm-order-sum">{money(Number(o.total ?? 0))}<span className={`adm-pay ${paid ? 'ok' : ''}`}>{paid ? 'оплачен' : 'не оплачен'}</span></div>
+                    <div className="adm-order-sum">{money(Number(o.total ?? 0))}<span className={`adm-pay ${paid ? 'ok' : ''}`}>{paid ? `оплачен · ${provider}` : `не оплачен · ${provider}`}</span></div>
                   </div>
                   <div className="adm-order-meta">{o.client} · {o.phone} · {o.city} · {o.delivery}{o.pickupPointName ? ` · ${o.pickupPointName}` : ''}</div>
                   <div className="adm-order-ctl">
@@ -706,7 +717,7 @@ export default function Admin() {
                     {paid && o.deliveryProvider === 'cdek' && !hasTrack && <button className="btn sm" onClick={() => createShipment(o.id)} type="button">Создать отправление СДЭК</button>}
                     {hasTrack && <span className="adm-track">трек: <b>{track}</b> <button className="btn ghost sm" onClick={() => sendTrack(o.id)} type="button">отправить клиенту</button></span>}
                     {o.paymentUrl && !paid && <a className="btn ghost sm" href={o.paymentUrl} target="_blank" rel="noreferrer">ссылка оплаты</a>}
-                    {o.paymentUrl && paid && <a className="btn ghost sm" href={o.paymentUrl} target="_blank" rel="noreferrer">🧾 Чек Точки</a>}
+                    {o.paymentUrl && paid && <a className="btn ghost sm" href={o.paymentUrl} target="_blank" rel="noreferrer">{provider === 'Долями' ? 'Открыть Долями' : provider === 'Точка' ? '🧾 Чек Точки' : 'Ссылка оплаты'}</a>}
                     <button className="btn ghost sm adm-del-order" onClick={() => deleteOrder(o.id)} type="button">Удалить</button>
                   </div>
                 </div>
