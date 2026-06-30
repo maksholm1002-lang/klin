@@ -704,13 +704,21 @@ export default function Admin() {
               const hasTrack = track && !track.startsWith('ожидает') && track !== 'через менеджера'
               const paid = isPaid(o)
               const provider = paymentProvider(o)
+              const orderContacts = [
+                o.client,
+                o.phone,
+                String(o.telegram ?? '').trim() ? `TG: ${String(o.telegram ?? '').trim()}` : '',
+                o.city,
+                o.delivery,
+                o.pickupPointName,
+              ].filter(Boolean).join(' · ')
               return (
                 <div className="adm-card adm-order" key={o.id}>
                   <div className="adm-order-h">
                     <div><b>{o.product}</b> · {[o.color, o.size].filter(Boolean).join(' · ')}<div className="muted sm">{o.id}</div></div>
                     <div className="adm-order-sum">{money(Number(o.total ?? 0))}<span className={`adm-pay ${paid ? 'ok' : ''}`}>{paid ? `оплачен · ${provider}` : `не оплачен · ${provider}`}</span></div>
                   </div>
-                  <div className="adm-order-meta">{o.client} · {o.phone} · {o.city} · {o.delivery}{o.pickupPointName ? ` · ${o.pickupPointName}` : ''}</div>
+                  <div className="adm-order-meta">{orderContacts}</div>
                   <div className="adm-order-ctl">
                     <label className="adm-f inline"><span>Статус</span><select value={ORDER_STATUS.some(([v]) => v === o.status) ? o.status : ''} onChange={(e) => patchOrder(o.id, { status: e.target.value })}><option value="" disabled>{o.status}</option>{ORDER_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
                     {!paid && <button className="btn sm" onClick={() => markPaid(o.id)} type="button">Отметить оплаченным</button>}
