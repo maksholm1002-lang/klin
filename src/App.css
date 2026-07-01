@@ -72,8 +72,8 @@ em { font-style: normal; }
 .catalog { padding: 6px 0 40px; }
 .grid { max-width: 1280px; margin: 0 auto; padding: 0 28px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 36px 24px; }
 .card { background: none; border: none; padding: 0; cursor: pointer; text-align: left; color: inherit; font: inherit; }
-.card-img { position: relative; aspect-ratio: 3/4; overflow: hidden; background: var(--bg2); }
-.card-img img { width: 100%; height: 100%; object-fit: cover; transition: opacity .3s, transform .7s var(--ease); }
+.card-img { position: relative; aspect-ratio: 3/4; overflow: hidden; background: #fff; }
+.card-img img { width: 100%; height: 100%; object-fit: contain; object-position: center; transition: opacity .3s, transform .7s var(--ease); }
 .card:hover .card-img img { transform: scale(1.03); }
 .badge { position: absolute; top: 12px; left: 12px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 5px 9px; background: #fff; color: var(--fg); border: 1px solid var(--line2); }
 .badge.st-soldout { color: var(--dim); }
@@ -196,9 +196,9 @@ em { font-style: normal; }
 .tg-prompt-x { position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: #111; color: #fff; cursor: pointer; font-size: 11px; line-height: 1; }
 
 /* ---------- hero banner ---------- */
-.hero { position: relative; height: 62vh; min-height: 420px; overflow: hidden; background: var(--bg2); display: flex; align-items: flex-end; }
+.hero { position: relative; height: 62vh; min-height: 420px; overflow: hidden; background: #fff; display: flex; align-items: flex-end; }
 .hero-bg { position: absolute; inset: 0; z-index: 0; }
-.hero-bg img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
+.hero-bg img { width: 100%; height: 100%; object-fit: contain; object-position: center; }
 .hero-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.28) 0%, rgba(0,0,0,.04) 32%, rgba(0,0,0,.82) 100%); }
 .hero-in { position: relative; z-index: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 0 28px 44px; color: #fff; }
 .hero-kicker { font-size: 12px; letter-spacing: .26em; text-transform: uppercase; opacity: .85; }
@@ -208,7 +208,7 @@ em { font-style: normal; }
 
 /* ---------- hero concept 2 (full-screen) ---------- */
 .hero.hero-full { height: 92vh; min-height: 580px; align-items: center; text-align: center; }
-.hero.hero-full .hero-bg img { object-position: center 22%; }
+.hero.hero-full .hero-bg img { object-position: center; }
 .hero.hero-full .hero-in { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; padding-bottom: 9vh; }
 .hero.hero-full .hero-kicker { opacity: .82; }
 .hero.hero-full .hero-title { font-weight: 800; font-size: clamp(40px, 7.2vw, 92px); margin: 14px 0 28px; line-height: 1.02; }
