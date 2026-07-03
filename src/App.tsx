@@ -523,10 +523,10 @@ export default function App() {
   const heroSrc = heroImage || (heroProduct ? productCover(heroProduct) : '')
   const heroCta = heroProduct?.status === 'available' ? 'В наличии' : heroProduct?.status === 'preorder' ? 'Предзаказ' : 'К товару'
   const catalogCategories = useMemo(() => [
-    { id: 'ALL', label: 'ALL' },
-    { id: 'TOPS', label: 'TOPS' },
-    { id: 'PANTS', label: 'PANTS' },
-    { id: 'SOLD OUT', label: 'SOLD OUT' },
+    { id: 'ALL', label: 'ВСЕ' },
+    { id: 'TOPS', label: 'ВЕРХ' },
+    { id: 'PANTS', label: 'НИЗ' },
+    { id: 'SOLD OUT', label: 'РАСПРОДАНО' },
   ], [])
   const catalogProducts = useMemo(() => products.filter((p) => {
     if (catalogCategory === 'SOLD OUT') return p.status === 'soldout'
@@ -562,17 +562,25 @@ export default function App() {
       {view === 'home' ? (
         <>
           {heroProduct && (
-            <section className="hero hero-full">
+            <section className="hero hero-full hero-eastern">
               <picture className="hero-bg">
                 <img src={heroSrc} alt="" decoding="async" fetchPriority="high" />
               </picture>
+              <div className="hero-disc" aria-hidden="true" />
+              <div className="hero-shelf" aria-hidden="true">
+                <span />
+              </div>
+              <div className="hero-vertical" aria-hidden="true">美<br />は<br />細<br />部<br />に<br />宿<br />る。</div>
               <div className="hero-in">
-                <span className="hero-kicker">Новый дроп</span>
-                <h1 className="hero-title">{heroTitle || heroProduct.name}</h1>
+                <h1 className="hero-title">Lin <span className="hero-seal">林</span></h1>
+                <p className="hero-tag">ASIAN INSPIRED. TIMELESS SOUL.</p>
+                <div className="hero-rule" aria-hidden="true"><span>✥</span></div>
+                <p className="hero-copy">Тишина в движении.<br />Формы, вдохновлённые Востоком.</p>
                 <div className="hero-actions">
-                  <button className="btn light" onClick={() => openProduct(heroProduct)} type="button">{heroCta}</button>
+                  <button className="btn hero-dark" onClick={() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' })} type="button">Смотреть коллекцию</button>
                   {(heroProduct.sizeChart?.length ?? 0) > 0 && <button className="hero-size-link" onClick={() => openSizeFinder(heroProduct)} type="button">Подобрать размер</button>}
                 </div>
+                <div className="hero-values" aria-hidden="true"><span>ПРОСТОТА</span><i /><span>ГАРМОНИЯ</span><i /><span>ХАРАКТЕР</span><b>林</b></div>
               </div>
             </section>
           )}
@@ -590,7 +598,7 @@ export default function App() {
               {catalogProducts.map((p) => (
                 <button className={`card ${p.status === 'soldout' ? 'soldout-card' : ''}`} key={p.id} onClick={() => openProduct(p)} type="button">
                   <div className="card-img">
-                    <img src={productCover(p)} alt={p.name} decoding="async" loading="lazy" />
+                    <img src={productCover(p)} alt={p.name} decoding="async" loading="eager" />
                     {p.status === 'soldout' ? <span className="soldout-overlay">SOLD OUT</span> : null}
                     {STATUS_LABEL[p.status] && <span className={`badge st-${p.status}`}>{STATUS_LABEL[p.status]}</span>}
                   </div>
