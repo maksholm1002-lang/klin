@@ -180,6 +180,7 @@ export default function App() {
   const [sizes, setSizes] = useState<SizeRule[]>([])
   const [reviews, setReviews] = useState<Array<Record<string, unknown>>>([])
   const [catalogLoaded, setCatalogLoaded] = useState(false)
+  const [catalogCategory, setCatalogCategory] = useState('ALL')
   const [view, setView] = useState<'home' | 'product' | 'reviews' | 'admin'>(() => (location.hash.includes('lin-admin') || location.pathname.includes('lin-admin')) ? 'admin' : 'home')
   const [activeId, setActiveId] = useState('')
   const [photoIdx, setPhotoIdx] = useState(0)
@@ -521,8 +522,18 @@ export default function App() {
   }, [products])
   const heroSrc = heroImage || (heroProduct ? productCover(heroProduct) : '')
   const heroCta = heroProduct?.status === 'available' ? 'В наличии' : heroProduct?.status === 'preorder' ? 'Предзаказ' : 'К товару'
-  const catalogProducts = useMemo(() => products.filter((p) => p.status !== 'soldout'), [products])
-  const soldOutProducts = useMemo(() => products.filter((p) => p.status === 'soldout'), [products])
+  const catalogCategories = useMemo(() => [
+    { id: 'ALL', label: 'ALL' },
+    { id: 'TOPS', label: 'TOPS' },
+    { id: 'PANTS', label: 'PANTS' },
+    { id: 'SOLD OUT', label: 'SOLD OUT' },
+  ], [])
+  const catalogProducts = useMemo(() => products.filter((p) => {
+    if (catalogCategory === 'SOLD OUT') return p.status === 'soldout'
+    if (catalogCategory === 'TOPS') return /top|топ/i.test(`${p.name} ${p.category}`)
+    if (catalogCategory === 'PANTS') return /pants|trouser|штан|брюк|хакама/i.test(`${p.name} ${p.category}`)
+    return true
+  }), [catalogCategory, products])
   const freeShippingLeft = Math.max(0, FREE_SHIPPING_THRESHOLD - productTotal)
   const displayDeliveryCost = productTotal >= FREE_SHIPPING_THRESHOLD && quote ? 0 : (quote?.cost ?? 0)
   const sfChart = sfProduct?.sizeChart ?? []
@@ -567,12 +578,20 @@ export default function App() {
           )}
 
           <section className="catalog" id="catalog">
-            <div className="sec-head"><h2>Каталог</h2><span>{catalogProducts.length} в наличии</span></div>
-            <div className={`grid ${catalogProducts.length === 1 ? 'grid-one' : ''}`}>
+            <div className="catalog-tabs" aria-label="Категории каталога">
+              {catalogCategories.map((cat) => (
+                <button key={cat.id} className={catalogCategory === cat.id ? 'on' : ''} type="button" onClick={() => setCatalogCategory(cat.id)}>
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+            <div className="sec-head"><h2>Каталог</h2><span>{products.filter((p) => p.status !== 'soldout').length} в наличии · {products.filter((p) => p.status === 'soldout').length} sold out</span></div>
+            <div className="grid">
               {catalogProducts.map((p) => (
-                <button className={`card ${catalogProducts.length === 1 ? 'feature-card' : ''}`} key={p.id} onClick={() => openProduct(p)} type="button">
+                <button className={`card ${p.status === 'soldout' ? 'soldout-card' : ''}`} key={p.id} onClick={() => openProduct(p)} type="button">
                   <div className="card-img">
                     <img src={productCover(p)} alt={p.name} decoding="async" loading="lazy" />
+                    {p.status === 'soldout' ? <span className="soldout-overlay">SOLD OUT</span> : null}
                     {STATUS_LABEL[p.status] && <span className={`badge st-${p.status}`}>{STATUS_LABEL[p.status]}</span>}
                   </div>
                   <div className="card-meta">
@@ -585,12 +604,6 @@ export default function App() {
               ))}
               {!catalogProducts.length && <p className="muted">{catalogLoaded ? 'Каталог временно недоступен.' : 'Загружаем…'}</p>}
             </div>
-            {soldOutProducts.length > 0 && (
-              <div className="soldout-rail">
-                <span>Архив</span>
-                {soldOutProducts.map((p) => <button key={p.id} type="button" onClick={() => openProduct(p)}>{p.name} · продано</button>)}
-              </div>
-            )}
           </section>
         </>
       ) : view === 'reviews' ? (
