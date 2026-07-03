@@ -573,14 +573,6 @@ export default function App() {
                 <button className={`card ${catalogProducts.length === 1 ? 'feature-card' : ''}`} key={p.id} onClick={() => openProduct(p)} type="button">
                   <div className="card-img">
                     <img src={productCover(p)} alt={p.name} decoding="async" loading="lazy" />
-                    {p.name.toLowerCase().includes('top') && (
-                      <div className="top-render" aria-hidden="true">
-                        <span className="top-render-body" />
-                        <span className="top-render-collar" />
-                        <span className="top-render-sash one" />
-                        <span className="top-render-sash two" />
-                      </div>
-                    )}
                     {STATUS_LABEL[p.status] && <span className={`badge st-${p.status}`}>{STATUS_LABEL[p.status]}</span>}
                   </div>
                   <div className="card-meta">
