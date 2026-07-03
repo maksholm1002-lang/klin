@@ -71,7 +71,7 @@ em { font-style: normal; }
 .sec-head span { color: var(--dim); font-size: 13px; }
 
 /* ---------- catalog ---------- */
-.catalog { padding: 32px 0 58px; position: relative; }
+.catalog { padding: 18px 0 58px; position: relative; }
 .catalog::before {
   content: "林";
   position: absolute;
@@ -876,12 +876,17 @@ em { font-style: normal; }
   .hd { padding: 12px 16px; }
   .brand .word { font-size: 13px; letter-spacing: .2em; }
   .acc-btn { font-size: 13px; }
-  .catalog { padding-top: 22px; }
-  .catalog-tabs { padding: 0 16px 18px; margin-bottom: 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 16px; }
-  .grid { grid-template-columns: 1fr; padding: 0 16px; gap: 34px; }
+  .catalog { padding-top: 14px; padding-bottom: 42px; }
+  .catalog::before { display: none; }
+  .catalog-tabs { padding: 0 14px 14px; margin-bottom: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; column-gap: 12px; }
+  .catalog-tabs button { font-size: 10px; letter-spacing: .08em; }
+  .grid { grid-template-columns: 1fr; padding: 0 14px; gap: 30px; }
   .sec-head { padding: 0 16px; }
   .sec-head h2 { font-size: 22px; }
+  .sec-head span { font-size: 12px; }
   .card::after { font-size: 24px; }
+  .card-img { aspect-ratio: 4/5; }
+  .card-meta { padding-top: 10px; }
   .soldout-overlay { width: 82%; font-size: clamp(24px, 11vw, 42px); }
   .hero.hero-full.hero-eastern { min-height: 880px; }
   .hero-eastern .hero-bg { inset: 338px -34vw 0 7vw; width: 126vw; }

@@ -561,30 +561,6 @@ export default function App() {
 
       {view === 'home' ? (
         <>
-          {heroProduct && (
-            <section className="hero hero-full hero-eastern">
-              <picture className="hero-bg">
-                <img src={heroSrc} alt="" decoding="async" fetchPriority="high" />
-              </picture>
-              <div className="hero-disc" aria-hidden="true" />
-              <div className="hero-shelf" aria-hidden="true">
-                <span />
-              </div>
-              <div className="hero-vertical" aria-hidden="true">美<br />は<br />細<br />部<br />に<br />宿<br />る。</div>
-              <div className="hero-in">
-                <h1 className="hero-title">Lin <span className="hero-seal">林</span></h1>
-                <p className="hero-tag">ASIAN INSPIRED. TIMELESS SOUL.</p>
-                <div className="hero-rule" aria-hidden="true"><span>✥</span></div>
-                <p className="hero-copy">Тишина в движении.<br />Формы, вдохновлённые Востоком.</p>
-                <div className="hero-actions">
-                  <button className="btn hero-dark" onClick={() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' })} type="button">Смотреть коллекцию</button>
-                  {(heroProduct.sizeChart?.length ?? 0) > 0 && <button className="hero-size-link" onClick={() => openSizeFinder(heroProduct)} type="button">Подобрать размер</button>}
-                </div>
-                <div className="hero-values" aria-hidden="true"><span>ПРОСТОТА</span><i /><span>ГАРМОНИЯ</span><i /><span>ХАРАКТЕР</span><b>林</b></div>
-              </div>
-            </section>
-          )}
-
           <section className="catalog" id="catalog">
             <div className="catalog-tabs" aria-label="Категории каталога">
               {catalogCategories.map((cat) => (
