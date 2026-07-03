@@ -44,6 +44,7 @@ const statusRu = (s: string) => STATUS_RU[s] || s
 const cdekTrackUrl = (t: string) => `https://www.cdek.ru/ru/tracking?order_id=${encodeURIComponent(t)}`
 const money = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} ₽`
 const dolyamePart = (n: number) => Math.ceil(Math.max(0, n) / 4)
+const FREE_SHIPPING_THRESHOLD = 8000
 const TG = 'lin_asia'
 const UTM_STORAGE = 'lin-utm'
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || 'https://linasia.ru').replace(/\/$/, '')
@@ -220,7 +221,7 @@ export default function App() {
   const [cityFocus, setCityFocus] = useState(false)
   const [pickCode, setPickCode] = useState('')
   const [agree, setAgree] = useState(false)
-  const [quote, setQuote] = useState<{ cost: number; label: string } | null>(null)
+  const [quote, setQuote] = useState<{ cost: number; label: string; originalCost?: number; freeShipping?: boolean } | null>(null)
   const [promo, setPromo] = useState('')
   const [promoState, setPromoState] = useState<{ valid: boolean; gift?: string; reason?: string } | null>(null)
   const [promoChecking, setPromoChecking] = useState(false)
@@ -443,7 +444,7 @@ export default function App() {
             items: checkoutItems.map(({ productId, size, color, qty }) => ({ productId, size, color, qty })),
           }),
         })
-        if (r.ok) { const d = await r.json(); setQuote({ cost: Number(d.cost ?? 0), label: String(d.label ?? form.delivery) }) }
+        if (r.ok) { const d = await r.json(); setQuote({ cost: Number(d.cost ?? 0), label: String(d.label ?? form.delivery), originalCost: Number(d.originalCost ?? d.cost ?? 0), freeShipping: Boolean(d.freeShipping) }) }
         else setQuote(null)
       } catch { setQuote(null) }
     }, 400)
@@ -520,6 +521,10 @@ export default function App() {
   }, [products])
   const heroSrc = heroImage || (heroProduct ? productCover(heroProduct) : '')
   const heroCta = heroProduct?.status === 'available' ? 'В наличии' : heroProduct?.status === 'preorder' ? 'Предзаказ' : 'К товару'
+  const catalogProducts = useMemo(() => products.filter((p) => p.status !== 'soldout'), [products])
+  const soldOutProducts = useMemo(() => products.filter((p) => p.status === 'soldout'), [products])
+  const freeShippingLeft = Math.max(0, FREE_SHIPPING_THRESHOLD - productTotal)
+  const displayDeliveryCost = productTotal >= FREE_SHIPPING_THRESHOLD && quote ? 0 : (quote?.cost ?? 0)
   const sfChart = sfProduct?.sizeChart ?? []
   const sfResult = useMemo(() => recommendTopSize(sfChart, Number(sfChest) || 0), [sfChart, sfChest])
   const openSizeFinder = (p: Product | null) => { setSfProduct(p); setSfChest(''); setSizeFinderOpen(true) }
@@ -562,20 +567,38 @@ export default function App() {
           )}
 
           <section className="catalog" id="catalog">
-            <div className="sec-head"><h2>Каталог</h2><span>{products.length} вещей</span></div>
-            <div className="grid">
-              {products.map((p) => (
-                <button className="card" key={p.id} onClick={() => openProduct(p)} type="button">
-                  <div className="card-img"><img src={productCover(p)} alt={p.name} decoding="async" loading="lazy" />{STATUS_LABEL[p.status] && <span className={`badge st-${p.status}`}>{STATUS_LABEL[p.status]}</span>}</div>
+            <div className="sec-head"><h2>Каталог</h2><span>{catalogProducts.length} в наличии</span></div>
+            <div className={`grid ${catalogProducts.length === 1 ? 'grid-one' : ''}`}>
+              {catalogProducts.map((p) => (
+                <button className={`card ${catalogProducts.length === 1 ? 'feature-card' : ''}`} key={p.id} onClick={() => openProduct(p)} type="button">
+                  <div className="card-img">
+                    <img src={productCover(p)} alt={p.name} decoding="async" loading="lazy" />
+                    {p.name.toLowerCase().includes('top') && (
+                      <div className="top-render" aria-hidden="true">
+                        <span className="top-render-body" />
+                        <span className="top-render-collar" />
+                        <span className="top-render-sash one" />
+                        <span className="top-render-sash two" />
+                      </div>
+                    )}
+                    {STATUS_LABEL[p.status] && <span className={`badge st-${p.status}`}>{STATUS_LABEL[p.status]}</span>}
+                  </div>
                   <div className="card-meta">
                     <div><div className="card-name">{p.name}</div><div className="card-sub">{p.drop}</div></div>
                     <div className="card-price">{p.price > 0 ? money(p.price) : 'скоро'}</div>
                   </div>
                   {p.price > 0 && <div className="card-dolyame">Долями по {money(dolyamePart(p.price))}</div>}
+                  {p.price > 0 && <div className="card-shipping">Бесплатная доставка от {money(FREE_SHIPPING_THRESHOLD)}</div>}
                 </button>
               ))}
-              {!products.length && <p className="muted">{catalogLoaded ? 'Каталог временно недоступен.' : 'Загружаем…'}</p>}
+              {!catalogProducts.length && <p className="muted">{catalogLoaded ? 'Каталог временно недоступен.' : 'Загружаем…'}</p>}
             </div>
+            {soldOutProducts.length > 0 && (
+              <div className="soldout-rail">
+                <span>Архив</span>
+                {soldOutProducts.map((p) => <button key={p.id} type="button" onClick={() => openProduct(p)}>{p.name} · продано</button>)}
+              </div>
+            )}
           </section>
         </>
       ) : view === 'reviews' ? (
@@ -662,6 +685,7 @@ export default function App() {
                 </div>
               )}
               {active.shippingWindow && <div className="p-meta-row"><span>Отправка</span><span>{active.shippingWindow}</span></div>}
+              <div className="p-meta-row free-ship"><span>Доставка</span><span>Бесплатно от {money(FREE_SHIPPING_THRESHOLD)}</span></div>
 
               {active.status === 'soldout' ? <button className="btn lg" disabled type="button">Продано</button>
                 : active.price > 0 ? <button className="btn primary lg" onClick={startCheckout} type="button">Добавить в заказ · {money(active.price)}</button>
@@ -768,8 +792,10 @@ export default function App() {
 
             <div className="totals">
               <div><span>Товары</span><span>{money(productTotal)}</span></div>
-              <div><span>Доставка</span><span>{quote ? (quote.cost ? money(quote.cost) : 'бесплатно') : '—'}</span></div>
-              <div className="grand"><span>Итого</span><span>{money(productTotal + (quote?.cost ?? 0))}</span></div>
+              <div><span>Доставка</span><span>{quote ? (displayDeliveryCost ? money(displayDeliveryCost) : 'бесплатно') : '—'}</span></div>
+              {productTotal > 0 && productTotal < FREE_SHIPPING_THRESHOLD && <div className="ship-left"><span>До бесплатной доставки</span><span>{money(freeShippingLeft)}</span></div>}
+              {productTotal >= FREE_SHIPPING_THRESHOLD && <div className="ship-left ok"><span>Бесплатная доставка</span><span>применена</span></div>}
+              <div className="grand"><span>Итого</span><span>{money(productTotal + displayDeliveryCost)}</span></div>
             </div>
             <div className="pay-methods">
               <button className={paymentMethod === 'tochka' ? 'on' : ''} type="button" onClick={() => setPaymentMethod('tochka')}>
