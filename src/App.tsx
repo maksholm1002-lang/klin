@@ -705,7 +705,7 @@ export default function App() {
         <div className="ft-copy">© {new Date().getFullYear()} LIN</div>
       </footer>
 
-      {tgPrompt && (
+      {tgPrompt && cookieOk && (
         <div className="tg-prompt">
           <button className="tg-prompt-x" type="button" aria-label="Закрыть" onClick={() => { safeStorage.set('lin-tg-prompt', 'closed'); setTgPrompt(false) }}>✕</button>
           <div>
