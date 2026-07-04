@@ -1,0 +1,108 @@
+/* ============================================================
+   LIN — polish layer · 2026-07-04
+   Наложенный слой стилей поверх живой сборки.
+   Цели: размытие (feather) границ карточек, премиум-рамка,
+   sheen при наведении, маркетинговые акценты, доп. анимации.
+   Таргетит существующие классы живого сайта. Полностью обратим.
+   ============================================================ */
+
+/* ---- карточка: скругление, мягкая тень, плавность ---- */
+.card-img {
+  border-radius: 18px;
+  box-shadow: 0 2px 12px -8px rgba(29, 26, 23, .20);
+  transition: box-shadow .55s var(--ease), transform .55s var(--ease);
+}
+.card:hover .card-img {
+  box-shadow: 0 26px 52px -24px rgba(29, 26, 23, .34);
+}
+
+/* ---- размытие к границам: изображение мягко растворяется в карточке ---- */
+.card-img::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 22px 10px #fff,            /* feather-край */
+    inset 0 0 0 1px rgba(29, 26, 23, .06); /* тонкая рамка */
+}
+.soldout-card .card-img::after {
+  box-shadow:
+    inset 0 0 22px 10px #f1efeb,
+    inset 0 0 0 1px rgba(29, 26, 23, .06);
+}
+
+/* значок и надпись SOLD OUT — всегда поверх feather */
+.badge { z-index: 5; }
+.soldout-overlay { z-index: 6; }
+
+/* ---- sheen: блик пробегает по карточке при наведении ---- */
+.card-img::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 34%, rgba(255, 255, 255, .5) 50%, transparent 66%);
+  transform: translateX(-130%);
+  opacity: 0;
+}
+
+/* ---- маркетинг: чип рассрочки + акцент на бесплатной доставке ---- */
+.card-dolyame {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg2);
+  color: var(--fg);
+  font-weight: 500;
+}
+.card-shipping {
+  display: block;
+  margin-top: 10px;
+  color: var(--seal);
+  font-weight: 500;
+}
+.card-shipping::before {
+  content: "✦";
+  margin-right: 6px;
+  opacity: .8;
+}
+.soldout-card .card-dolyame { opacity: .5; }
+.soldout-card .card-shipping { display: none; }
+
+/* ---- вёрстка: ровные ряды каталога ---- */
+.grid { align-items: start; }
+
+/* ---- анимации ---- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes linSheen {
+    0%   { transform: translateX(-130%); }
+    60%, 100% { transform: translateX(130%); }
+  }
+  .card:hover .card-img::before {
+    animation: linSheen 1.15s var(--ease);
+    opacity: 1;
+  }
+
+  /* деликатный тёплый перелив по надписи SOLD OUT */
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    @keyframes linShimmer {
+      0%   { background-position: -160% 0; }
+      100% { background-position: 260% 0; }
+    }
+    .soldout-card .soldout-overlay {
+      background: linear-gradient(100deg, #050505 0%, #050505 40%, #b98a5e 50%, #050505 60%, #050505 100%);
+      background-size: 220% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: none;
+      animation: linShimmer 3.8s linear infinite;
+    }
+  }
+}
