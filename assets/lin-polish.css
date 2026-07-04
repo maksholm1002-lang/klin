@@ -138,3 +138,17 @@
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
 }
+
+/* ---- ФОТО ТОВАРА: размер по месту ----
+   Не режем по высоте (у img белый фон → появились бы белые поля),
+   а уменьшаем галерею, сохраняя пропорцию 3/4: картинка заполняет рамку.
+   Заодно выравниваем колонки, чтобы блоку с описанием хватало места. */
+@media (min-width: 821px) {
+  .product-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+  }
+  .p-gallery {
+    max-width: 600px;
+    justify-self: center;
+  }
+}
