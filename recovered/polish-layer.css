@@ -106,3 +106,35 @@
     }
   }
 }
+
+/* ============================================================
+   v3 · 2026-07-04
+   ============================================================ */
+
+/* ---- ФОРМА ЗАКАЗА: модалка поверх экрана, а не в конце страницы ----
+   В живой сборке правило `.lin > :not(.ambient-layer){position:relative}`
+   по специфичности перебивает `.modal{position:fixed}`, из-за чего модалка
+   становится обычным блоком и «улетает вниз». Возвращаем overlay. */
+.lin > .modal {
+  position: fixed !important;
+  z-index: 100 !important;
+}
+
+/* ---- ФОТО ТОВАРА: плавное растворение краёв в фон сайта ----
+   Маска только на само изображение (стрелки .p-arrow и точки .p-dots —
+   тоже внутри .p-main, но это отдельные элементы и не затрагиваются). */
+.p-main {
+  background: transparent;
+}
+.p-main > img {
+  -webkit-mask-image:
+    linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to right,  transparent 0, #000 6%, #000 94%, transparent 100%);
+  mask-image:
+    linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to right,  transparent 0, #000 6%, #000 94%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
