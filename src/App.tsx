@@ -47,7 +47,9 @@ const dolyamePart = (n: number) => Math.ceil(Math.max(0, n) / 4)
 const FREE_SHIPPING_THRESHOLD = 8000
 const TG = 'lin_asia'
 const UTM_STORAGE = 'lin-utm'
+const POSTER_HERO = `${import.meta.env.BASE_URL}assets/lin-drop-poster.jpg`
 const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || 'https://linasia.ru').replace(/\/$/, '')
+const apiUrl = (url: string) => /^(https?:|data:|blob:)/.test(url) ? url : `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`
 const assetUrl = (url?: string) => {
   if (!url) return ''
   if (/^(https?:|data:|blob:)/.test(url)) return url
@@ -80,7 +82,7 @@ async function fetchJson<T>(url: string, timeoutMs = 5000): Promise<T | null> {
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(url, { cache: 'no-store', signal: controller.signal })
+    const response = await fetch(apiUrl(url), { cache: 'no-store', signal: controller.signal })
     if (!response.ok) return null
     return await response.json() as T
   } catch {
@@ -114,6 +116,7 @@ const currentUtm = () => {
   } catch { /* ignore broken storage values */ }
   return { utmSource: '', utmMedium: '', utmCampaign: '' }
 }
+const isPantsProduct = (p: Product) => /pants|trouser|штан|брюк|хакама/i.test(`${p.name} ${p.category}`)
 
 // ---------- Карта ПВЗ (leaflet) ----------
 function markerIcon(leaflet: LeafletModule, active = false) {
@@ -275,7 +278,7 @@ export default function App() {
       try {
         let vid = safeStorage.get('lin-visitor-id')
         if (!vid) { vid = (createVisitorId()); safeStorage.set('lin-visitor-id', vid) }
-        fetch('/api/analytics/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, body: JSON.stringify({ type: 'visit', visitorId: vid, path: `${location.pathname}${location.search}`, ...currentUtm() }) }).catch(() => {})
+        fetch(apiUrl('/api/analytics/events'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, body: JSON.stringify({ type: 'visit', visitorId: vid, path: `${location.pathname}${location.search}`, ...currentUtm() }) }).catch(() => {})
       } catch { /* no-op */ }
     }, 1600)
   }, [])
@@ -309,7 +312,7 @@ export default function App() {
     setAuthMsg('')
     const endpoint = authMode === 'register' ? '/api/auth/register' : '/api/auth/login'
     try {
-      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: authPhone, password: authPassword, name: authName }) })
+      const r = await fetch(apiUrl(endpoint), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: authPhone, password: authPassword, name: authName }) })
       const data = await r.json().catch(() => ({}) as Record<string, string>)
       if (!r.ok) { setAuthMsg(data.error || 'Не получилось'); return }
       setUserToken(data.token); setUserName(data.name || ''); setUserPhone(data.phone || '')
@@ -327,7 +330,7 @@ export default function App() {
     if (!userToken) { setAuthMode('login'); setAuthMsg(''); setAuthOpen(true); return }
     setAccountOpen(true)
     try {
-      const r = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${userToken}` } })
+      const r = await fetch(apiUrl('/api/auth/me'), { headers: { Authorization: `Bearer ${userToken}` } })
       if (r.ok) { const d = await r.json(); setAccountOrders(Array.isArray(d.orders) ? d.orders : []); if (d.name) setUserName(d.name) }
       else if (r.status === 401) { logoutUser(); setAuthMode('login'); setAuthOpen(true) }
     } catch { /* offline */ }
@@ -339,7 +342,7 @@ export default function App() {
     const reader = new FileReader()
     reader.onload = async () => {
       try {
-        const r = await fetch('/api/reviews/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl: String(reader.result) }) })
+        const r = await fetch(apiUrl('/api/reviews/photo'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl: String(reader.result) }) })
         const d = await r.json().catch(() => ({}))
         if (!r.ok) { setReviewMsg(d.error || 'Не удалось загрузить фото'); return }
         setReviewPhoto(d.url); setReviewMsg('')
@@ -352,7 +355,7 @@ export default function App() {
     setReviewMsg('')
     if (reviewText.trim().length < 4) { setReviewMsg('Напиши пару слов'); return }
     try {
-      const r = await fetch('/api/reviews', {
+      const r = await fetch(apiUrl('/api/reviews'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId, rating: reviewRating, text: reviewText.trim(), name: userName, photoUrl: reviewPhoto }),
       })
@@ -383,7 +386,7 @@ export default function App() {
     })
     try {
       const visitorId = safeStorage.get('lin-visitor-id') || ''
-      if (visitorId) fetch('/api/analytics/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'cart_add', visitorId, productId: active.id, path: `${location.pathname}${location.search}`, ...currentUtm() }) }).catch(() => {})
+      if (visitorId) fetch(apiUrl('/api/analytics/events'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'cart_add', visitorId, productId: active.id, path: `${location.pathname}${location.search}`, ...currentUtm() }) }).catch(() => {})
     } catch { /* no-op */ }
     setOrderMsg(''); setQuote(null); setPickCode(''); setPointSearch(''); setAgree(false); setCheckoutOpen(true)
   }
@@ -407,7 +410,7 @@ export default function App() {
     const q = `city=${encodeURIComponent(form.city.trim())}&country=${encodeURIComponent(form.country)}`
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`${endpoint}?${q}`)
+        const r = await fetch(apiUrl(`${endpoint}?${q}`))
         const d = await r.json()
         if (!cancel) setPoints(Array.isArray(d.points) ? d.points : [])
       } catch { if (!cancel) setPoints([]) }
@@ -423,7 +426,7 @@ export default function App() {
     let cancel = false
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/cdek/cities?city=${encodeURIComponent(form.city.trim())}&country=${encodeURIComponent(form.country)}`)
+        const r = await fetch(apiUrl(`/api/cdek/cities?city=${encodeURIComponent(form.city.trim())}&country=${encodeURIComponent(form.country)}`))
         const d = await r.json()
         if (!cancel) setCityOpts(Array.isArray(d.cities) ? d.cities.slice(0, 6) : [])
       } catch { if (!cancel) setCityOpts([]) }
@@ -437,7 +440,7 @@ export default function App() {
     const t = setTimeout(async () => {
       try {
         const first = checkoutItems[0]
-        const r = await fetch('/api/delivery/quote', {
+        const r = await fetch(apiUrl('/api/delivery/quote'), {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             city: form.city, country: form.country, productId: first.productId, delivery: form.delivery,
@@ -458,7 +461,7 @@ export default function App() {
     if (!code) { setPromoState(null); return }
     setPromoChecking(true)
     try {
-      const r = await fetch('/api/promo/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+      const r = await fetch(apiUrl('/api/promo/validate'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
       setPromoState(await r.json())
     } catch { setPromoState({ valid: false, reason: 'error' }) }
     finally { setPromoChecking(false) }
@@ -479,7 +482,7 @@ export default function App() {
     setPlacing(true)
     try {
       const first = checkoutItems[0]
-      const r = await fetch('/api/orders', {
+      const r = await fetch(apiUrl('/api/orders'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           client: [form.surname.trim(), form.name.trim()].filter(Boolean).join(' '),
@@ -521,19 +524,17 @@ export default function App() {
       ?? null
   }, [products])
   const heroSrc = heroImage || (heroProduct ? productCover(heroProduct) : '')
-  const heroCta = heroProduct?.status === 'available' ? 'В наличии' : heroProduct?.status === 'preorder' ? 'Предзаказ' : 'К товару'
   const catalogCategories = useMemo(() => [
     { id: 'ALL', label: 'ВСЕ' },
     { id: 'TOPS', label: 'ВЕРХ' },
-    { id: 'PANTS', label: 'НИЗ' },
     { id: 'SOLD OUT', label: 'РАСПРОДАНО' },
   ], [])
-  const catalogProducts = useMemo(() => products.filter((p) => {
+  const visibleCatalogProducts = useMemo(() => products.filter((p) => !isPantsProduct(p)), [products])
+  const catalogProducts = useMemo(() => visibleCatalogProducts.filter((p) => {
     if (catalogCategory === 'SOLD OUT') return p.status === 'soldout'
     if (catalogCategory === 'TOPS') return /top|топ/i.test(`${p.name} ${p.category}`)
-    if (catalogCategory === 'PANTS') return /pants|trouser|штан|брюк|хакама/i.test(`${p.name} ${p.category}`)
     return true
-  }), [catalogCategory, products])
+  }), [catalogCategory, visibleCatalogProducts])
   const freeShippingLeft = Math.max(0, FREE_SHIPPING_THRESHOLD - productTotal)
   const displayDeliveryCost = productTotal >= FREE_SHIPPING_THRESHOLD && quote ? 0 : (quote?.cost ?? 0)
   const sfChart = sfProduct?.sizeChart ?? []
@@ -547,6 +548,9 @@ export default function App() {
 
   return (
     <div className="lin">
+      <div className="ambient-layer" aria-hidden="true">
+        {Array.from({ length: 14 }, (_, i) => <span key={i} />)}
+      </div>
       <header className="hd">
         <a className="brand" href="#" onClick={(e) => { e.preventDefault(); setView('home'); window.scrollTo({ top: 0 }) }}>
           <span className="hanzi">林</span><span className="word">LIN</span>
@@ -569,7 +573,21 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <div className="sec-head"><h2>Каталог</h2><span>{products.filter((p) => p.status !== 'soldout').length} в наличии · {products.filter((p) => p.status === 'soldout').length} sold out</span></div>
+            {heroProduct && heroSrc && (
+              <div className="catalog-banner">
+                <button className="poster-reference" type="button" onClick={() => openProduct(heroProduct)} aria-label={`Открыть ${heroProduct.name}`}>
+                  <img src={POSTER_HERO} alt="LIN. Три оттенка. Один силуэт." decoding="async" loading="eager" />
+                </button>
+              </div>
+            )}
+            <div className="catalog-head">
+              <div>
+                <span className="catalog-kicker">Коллекция</span>
+                <h1>Формы, в которых дышит тишина</h1>
+                <p>Минималистичные силуэты, вдохновлённые Востоком. Заказ, СДЭК и оплата работают через текущую систему LIN.</p>
+              </div>
+              <span>{visibleCatalogProducts.filter((p) => p.status !== 'soldout').length} в наличии · {visibleCatalogProducts.filter((p) => p.status === 'soldout').length} sold out</span>
+            </div>
             <div className="grid">
               {catalogProducts.map((p) => (
                 <button className={`card ${p.status === 'soldout' ? 'soldout-card' : ''}`} key={p.id} onClick={() => openProduct(p)} type="button">
@@ -667,14 +685,22 @@ export default function App() {
                 </div>
               )}
 
-              {active.material && (
-                <div className="p-section">
-                  <div className="p-label">Состав и детали</div>
-                  <p className="p-text">{active.material}</p>
-                </div>
-              )}
-              {active.shippingWindow && <div className="p-meta-row"><span>Отправка</span><span>{active.shippingWindow}</span></div>}
-              <div className="p-meta-row free-ship"><span>Доставка</span><span>Бесплатно от {money(FREE_SHIPPING_THRESHOLD)}</span></div>
+              <div className="p-acc">
+                {active.material && (
+                  <details open>
+                    <summary>Состав и детали</summary>
+                    <div className="p-acc-body">{active.material}</div>
+                  </details>
+                )}
+                <details>
+                  <summary>Доставка и оплата</summary>
+                  <div className="p-acc-body">
+                    {active.shippingWindow ? <p>Отправка: {active.shippingWindow}.</p> : null}
+                    <p>СДЭК по России и СНГ. Бесплатная доставка от {money(FREE_SHIPPING_THRESHOLD)}.</p>
+                    <p>Оплата картой, СБП, T-Pay или Долями при оформлении заказа.</p>
+                  </div>
+                </details>
+              </div>
 
               {active.status === 'soldout' ? <button className="btn lg" disabled type="button">Продано</button>
                 : active.price > 0 ? <button className="btn primary lg" onClick={startCheckout} type="button">Добавить в заказ · {money(active.price)}</button>
@@ -694,7 +720,7 @@ export default function App() {
         <div className="ft-copy">© {new Date().getFullYear()} LIN</div>
       </footer>
 
-      {tgPrompt && cookieOk && (
+      {tgPrompt && cookieOk && view === 'home' && (
         <div className="tg-prompt">
           <button className="tg-prompt-x" type="button" aria-label="Закрыть" onClick={() => { safeStorage.set('lin-tg-prompt', 'closed'); setTgPrompt(false) }}>✕</button>
           <div>

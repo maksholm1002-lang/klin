@@ -23,6 +23,8 @@ const paymentProvider = (o: AnyRec) => {
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
 const TAX_RATE = 4
 const DEFAULT_ACQUIRING_RATE = 2.7
+const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || 'https://linasia.ru').replace(/\/$/, '')
+const apiUrl = (url: string) => /^(https?:|data:|blob:)/.test(url) ? url : `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`
 const SITE_URL = 'https://www.linasia.ru/'
 const UTM_LINKS = [
   { name: 'TikTok', url: `${SITE_URL}?utm_source=tiktok&utm_medium=social&utm_campaign=drop02_top` },
@@ -60,7 +62,7 @@ export default function Admin() {
   async function login() {
     setErr('')
     try {
-      const r = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, password }) })
+      const r = await fetch(apiUrl('/api/admin/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, password }) })
       if (!r.ok) { setErr('Неверный телефон или пароль'); return }
       const d = await r.json(); setToken(d.token); localStorage.setItem('lin-admin-token', d.token)
     } catch { setErr('API недоступен') }
@@ -69,7 +71,7 @@ export default function Admin() {
 
   async function load() {
     try {
-      const r = await fetch('/api/admin/bootstrap', { headers: headers() })
+      const r = await fetch(apiUrl('/api/admin/bootstrap'), { headers: headers() })
       if (r.status === 401) { logout(); return }
       const d = await r.json()
       setProducts(Array.isArray(d.products) ? d.products : [])
@@ -78,30 +80,30 @@ export default function Admin() {
       setHeroImage(d.settings?.hero?.image ?? '')
       setHeroTitle(d.settings?.hero?.title ?? '')
       setDropFinance((d.siteConfig?.dropFinance ?? {}) as DropFinanceState)
-      const rr = await fetch('/api/admin/reviews', { headers: headers() })
+      const rr = await fetch(apiUrl('/api/admin/reviews'), { headers: headers() })
       if (rr.ok) setReviews(await rr.json())
-      const pr = await fetch('/api/admin/promo', { headers: headers() })
+      const pr = await fetch(apiUrl('/api/admin/promo'), { headers: headers() })
       if (pr.ok) setPromos(await pr.json())
     } catch { /* */ }
   }
   async function generatePromo() {
     const count = Math.max(1, Math.min(1000, Number(promoCount) || 1))
     setMsg('Генерирую промокоды…')
-    const r = await fetch('/api/admin/promo/generate', { method: 'POST', headers: headers(), body: JSON.stringify({ count, gift: promoGift.trim() || 'Подарок в посылке' }) })
+    const r = await fetch(apiUrl('/api/admin/promo/generate'), { method: 'POST', headers: headers(), body: JSON.stringify({ count, gift: promoGift.trim() || 'Подарок в посылке' }) })
     setMsg(r.ok ? `✓ Создано ${count} промокодов` : '✗ Ошибка'); void load()
   }
   async function deletePromo(code: string) {
-    await fetch(`/api/admin/promo/${encodeURIComponent(code)}`, { method: 'DELETE', headers: headers() }); void load()
+    await fetch(apiUrl(`/api/admin/promo/${encodeURIComponent(code)}`), { method: 'DELETE', headers: headers() }); void load()
   }
   async function saveHero(patch: { image?: string; title?: string }) {
-    await fetch('/api/settings/hero', { method: 'PUT', headers: headers(), body: JSON.stringify(patch) })
+    await fetch(apiUrl('/api/settings/hero'), { method: 'PUT', headers: headers(), body: JSON.stringify(patch) })
   }
   function uploadHero(file: File) {
     setMsg('Загружаю фото главного экрана…')
     const reader = new FileReader()
     reader.onload = async () => {
       try {
-        const r = await fetch('/api/uploads', { method: 'POST', headers: headers(), body: JSON.stringify({ dataUrl: String(reader.result), filename: file.name }) })
+        const r = await fetch(apiUrl('/api/uploads'), { method: 'POST', headers: headers(), body: JSON.stringify({ dataUrl: String(reader.result), filename: file.name }) })
         if (!r.ok) { setMsg('✗ Ошибка загрузки'); return }
         const { url } = await r.json()
         setHeroImage(url)
@@ -234,7 +236,7 @@ export default function Admin() {
   }
   async function saveDropFinance(next = dropFinance) {
     setMsg('Сохраняю финансы…')
-    const r = await fetch('/api/config', { method: 'PUT', headers: headers(), body: JSON.stringify({ dropFinance: next }) })
+    const r = await fetch(apiUrl('/api/config'), { method: 'PUT', headers: headers(), body: JSON.stringify({ dropFinance: next }) })
     setMsg(r.ok ? '✓ Финансы сохранены' : '✗ Ошибка сохранения финансов')
     if (r.ok) void load()
   }
@@ -260,7 +262,7 @@ export default function Admin() {
   async function saveProduct(p: AnyRec) {
     setMsg('Сохраняю…')
     try {
-      const r = await fetch(`/api/products/${p.id}`, { method: 'PATCH', headers: headers(), body: JSON.stringify({ name: p.name, price: Number(p.price) || 0, status: p.status, description: p.description, material: p.material, colors: p.colors ?? [], image: p.image, photos: p.photos ?? [], sizeChart: p.sizeChart ?? [], sizeNotes: p.sizeNotes ?? [], colorPhotos: p.colorPhotos ?? {} }) })
+      const r = await fetch(apiUrl(`/api/products/${p.id}`), { method: 'PATCH', headers: headers(), body: JSON.stringify({ name: p.name, price: Number(p.price) || 0, status: p.status, description: p.description, material: p.material, colors: p.colors ?? [], image: p.image, photos: p.photos ?? [], sizeChart: p.sizeChart ?? [], sizeNotes: p.sizeNotes ?? [], colorPhotos: p.colorPhotos ?? {} }) })
       setMsg(r.ok ? `✓ Сохранено: ${p.name}` : '✗ Ошибка сохранения'); if (r.ok) void load()
     } catch { setMsg('✗ API недоступен') }
   }
@@ -283,7 +285,7 @@ export default function Admin() {
     const reader = new FileReader()
     reader.onload = async () => {
       try {
-        const r = await fetch('/api/uploads', { method: 'POST', headers: headers(), body: JSON.stringify({ dataUrl: String(reader.result), filename: file.name }) })
+        const r = await fetch(apiUrl('/api/uploads'), { method: 'POST', headers: headers(), body: JSON.stringify({ dataUrl: String(reader.result), filename: file.name }) })
         if (!r.ok) { setMsg('✗ Ошибка загрузки'); return }
         const { url } = await r.json()
         setProducts((ps) => ps.map((x) => (x.id === p.id ? { ...x, image: url, photos: [...(x.photos ?? []), url] } : x)))
@@ -300,7 +302,7 @@ export default function Admin() {
     const reader = new FileReader()
     reader.onload = async () => {
       try {
-        const r = await fetch('/api/uploads', { method: 'POST', headers: headers(), body: JSON.stringify({ dataUrl: String(reader.result), filename: file.name }) })
+        const r = await fetch(apiUrl('/api/uploads'), { method: 'POST', headers: headers(), body: JSON.stringify({ dataUrl: String(reader.result), filename: file.name }) })
         if (!r.ok) { setMsg('✗ Ошибка загрузки'); return }
         const { url } = await r.json()
         setProducts((ps) => ps.map((x) => {
@@ -347,17 +349,17 @@ export default function Admin() {
   }
 
   // ---- заказы ----
-  async function patchOrder(id: string, body: AnyRec) { await fetch(`/api/orders/${id}`, { method: 'PATCH', headers: headers(), body: JSON.stringify(body) }); void load() }
+  async function patchOrder(id: string, body: AnyRec) { await fetch(apiUrl(`/api/orders/${id}`), { method: 'PATCH', headers: headers(), body: JSON.stringify(body) }); void load() }
   async function deleteOrder(id: string) {
     if (!window.confirm('Удалить заказ навсегда? Действие необратимо.')) return
     setMsg('Удаляю заказ…')
-    await fetch(`/api/orders/${id}`, { method: 'DELETE', headers: headers() })
+    await fetch(apiUrl(`/api/orders/${id}`), { method: 'DELETE', headers: headers() })
     setMsg('✓ Заказ удалён'); void load()
   }
   async function reconcileOrders() {
     setReconciling(true); setMsg('Сверяю оплаты с Точкой…')
     try {
-      const r = await fetch('/api/admin/reconcile', { method: 'POST', headers: headers() })
+      const r = await fetch(apiUrl('/api/admin/reconcile'), { method: 'POST', headers: headers() })
       const d = await r.json()
       setMsg(r.ok ? `✓ Сверка: подтверждено оплат +${d.paid}, удалено неоплаченных ${d.deleted}` : '✗ Ошибка сверки')
       void load()
@@ -382,14 +384,14 @@ export default function Admin() {
   async function createShipment(id: string) {
     setMsg('Создаю отправление СДЭК…')
     try {
-      const r = await fetch(`/api/orders/${id}/create-shipment`, { method: 'POST', headers: headers() })
+      const r = await fetch(apiUrl(`/api/orders/${id}/create-shipment`), { method: 'POST', headers: headers() })
       const d = await r.json().catch(() => ({}))
       setMsg(r.ok ? `✓ Отправление создано, трек: ${d.track || '—'}` : `✗ ${d.error || 'Ошибка СДЭК'}`); void load()
     } catch { setMsg('✗ API недоступен') }
   }
-  async function sendTrack(id: string) { const r = await fetch(`/api/orders/${id}/send-track`, { method: 'POST', headers: headers() }); setMsg(r.ok ? '✓ Трек отправлен клиенту' : '✗ Ошибка') }
-  async function approveReview(id: string) { await fetch(`/api/admin/reviews/${id}/approve`, { method: 'POST', headers: headers() }); void load() }
-  async function deleteReview(id: string) { await fetch(`/api/admin/reviews/${id}`, { method: 'DELETE', headers: headers() }); void load() }
+  async function sendTrack(id: string) { const r = await fetch(apiUrl(`/api/orders/${id}/send-track`), { method: 'POST', headers: headers() }); setMsg(r.ok ? '✓ Трек отправлен клиенту' : '✗ Ошибка') }
+  async function approveReview(id: string) { await fetch(apiUrl(`/api/admin/reviews/${id}/approve`), { method: 'POST', headers: headers() }); void load() }
+  async function deleteReview(id: string) { await fetch(apiUrl(`/api/admin/reviews/${id}`), { method: 'DELETE', headers: headers() }); void load() }
 
   if (!token) {
     return (
