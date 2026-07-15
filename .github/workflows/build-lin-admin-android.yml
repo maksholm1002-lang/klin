@@ -73,6 +73,21 @@ jobs:
           name: lin-admin-gradle-log
           path: admin-native/gradle-build.log
 
+      - name: Extract Gradle error summary
+        id: gradle_error
+        if: always()
+        run: |
+          summary="$(grep -E 'FAILURE:|What went wrong|Could not|SDK|error:|Exception' gradle-build.log | head -4 | tr '\n' ' ' | tr -cd '[:alnum:] ._:-' | cut -c1-140)"
+          [ -n "$summary" ] || summary="no-gradle-error-summary"
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
+
+      - name: Publish error summary name
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gradle-error-${{ steps.gradle_error.outputs.summary }}
+          path: admin-native/gradle-exit-code
+
       - name: Commit build log to branch
         if: always()
         working-directory: ${{ github.workspace }}
