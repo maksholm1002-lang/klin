@@ -54,8 +54,10 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           cd android
+          set +e
           ./gradlew assembleDebug --stacktrace 2>&1 | tee ../gradle-build.log
-          exit ${PIPESTATUS[0]}
+          echo "${PIPESTATUS[0]}" > ../gradle-exit-code
+          exit 0
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -76,9 +78,17 @@ jobs:
         working-directory: .
         run: |
           mkdir -p build-logs
+          touch admin-native/gradle-build.log
           cp admin-native/gradle-build.log build-logs/lin-admin-gradle-build.log || true
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add build-logs/lin-admin-gradle-build.log
-          git commit -m "Update LIN admin Android build log" || true
+          git diff --cached --quiet && exit 0
+          git commit -m "Update LIN admin Android build log"
           git push origin "HEAD:${GITHUB_REF_NAME}" || true
+
+      - name: Fail if Android build failed
+        if: always()
+        run: |
+          code="$(cat gradle-exit-code 2>/dev/null || echo 1)"
+          exit "$code"
