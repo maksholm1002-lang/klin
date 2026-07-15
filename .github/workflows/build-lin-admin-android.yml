@@ -33,6 +33,9 @@ jobs:
           cache: npm
           cache-dependency-path: admin-native/package-lock.json
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses
