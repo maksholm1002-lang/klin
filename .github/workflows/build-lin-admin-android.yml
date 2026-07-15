@@ -73,35 +73,6 @@ jobs:
           name: lin-admin-gradle-log
           path: admin-native/gradle-build.log
 
-      - name: Extract Gradle error summary
-        id: gradle_error
-        if: always()
-        run: |
-          summary="$(grep -E 'FAILURE:|What went wrong|Could not|SDK|error:|Exception' gradle-build.log | head -4 | tr '\n' ' ' | tr ' ' '_' | tr -cd '[:alnum:]_.-' | cut -c1-120)"
-          [ -n "$summary" ] || summary="no-gradle-error-summary"
-          echo "summary=$summary" >> "$GITHUB_OUTPUT"
-
-      - name: Publish error summary name
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: gradle-error-${{ steps.gradle_error.outputs.summary }}
-          path: admin-native/gradle-exit-code
-
-      - name: Commit build log to branch
-        if: always()
-        working-directory: ${{ github.workspace }}
-        run: |
-          mkdir -p build-logs
-          touch admin-native/gradle-build.log
-          cp admin-native/gradle-build.log build-logs/lin-admin-gradle-build.log || true
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add build-logs/lin-admin-gradle-build.log
-          git diff --cached --quiet && exit 0
-          git commit -m "Update LIN admin Android build log"
-          git push origin "HEAD:${GITHUB_REF_NAME}" || true
-
       - name: Fail if Android build failed
         if: always()
         run: |
