@@ -1,0 +1,15 @@
+{
+  "appId": "ru.linasia.admin",
+  "appName": "LIN Admin",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 900,
+      "backgroundColor": "#111111",
+      "showSpinner": false
+    }
+  }
+}

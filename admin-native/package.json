@@ -1,0 +1,17 @@
+{
+  "name": "lin-admin-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native Android wrapper for LIN Admin PWA",
+  "scripts": {
+    "sync": "cap sync android",
+    "build:android": "cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/core": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0"
+  }
+}

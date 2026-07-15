@@ -1,0 +1,57 @@
+name: Build LIN Admin Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - lin-admin-native-build
+    paths:
+      - "admin-native/**"
+      - ".github/workflows/build-lin-admin-android.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-native
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: admin-native/package-lock.json
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install npm packages
+        run: npm ci
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: lin-admin-debug-apk
+          path: admin-native/android/app/build/outputs/apk/debug/app-debug.apk
