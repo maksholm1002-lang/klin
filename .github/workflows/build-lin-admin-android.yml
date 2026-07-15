@@ -81,4 +81,4 @@ jobs:
           git config user.email "github-actions@github.com"
           git add build-logs/lin-admin-gradle-build.log
           git commit -m "Update LIN admin Android build log" || true
-          git push || true
+          git push origin "HEAD:${GITHUB_REF_NAME}" || true
