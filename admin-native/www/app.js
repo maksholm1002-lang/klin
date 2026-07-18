@@ -2,6 +2,7 @@ const DEFAULT_API = 'https://linasia.ru'
 const STORAGE = {
   api: 'linAdmin.apiBase',
   token: 'linAdmin.token',
+  phone: 'linAdmin.phone',
   costs: 'linAdmin.costs',
   rates: 'linAdmin.rates',
 }
@@ -11,6 +12,8 @@ const state = {
   loading: false,
   apiBase: localStorage.getItem(STORAGE.api) || DEFAULT_API,
   token: localStorage.getItem(STORAGE.token) || '',
+  phone: localStorage.getItem(STORAGE.phone) || '',
+  password: '',
   data: { products: [], orders: [], analytics: [], settings: {}, sizes: [] },
   costs: JSON.parse(localStorage.getItem(STORAGE.costs) || '{}'),
   rates: JSON.parse(localStorage.getItem(STORAGE.rates) || '{"tax":4,"acquiring":2.3}'),
@@ -50,7 +53,7 @@ async function loadData() {
   state.loading = true
   render()
   try {
-    const data = state.token ? await api('/api/admin/bootstrap') : await api('/api/bootstrap')
+    const data = state.token ? await api('/api/admin/bootstrap') : { products: [], orders: [], analytics: [], settings: {}, sizes: [] }
     state.data = {
       products: data.products || [],
       orders: data.orders || [],
@@ -58,13 +61,58 @@ async function loadData() {
       settings: data.settings || {},
       sizes: data.sizes || [],
     }
-    toast(state.token ? 'Админ-данные обновлены' : 'Публичные данные загружены. Для заказов нужен токен админа.')
+    toast(state.token ? 'Админ-данные обновлены' : 'Войдите в админку')
   } catch (error) {
+    if (String(error.message || '').includes('401')) {
+      state.token = ''
+      localStorage.removeItem(STORAGE.token)
+    }
     toast(`Ошибка API: ${error.message}`)
   } finally {
     state.loading = false
     render()
   }
+}
+
+async function login() {
+  const apiBase = cleanBase($('#loginApiBase')?.value || state.apiBase || DEFAULT_API)
+  const phone = ($('#loginPhone')?.value || '').trim()
+  const password = $('#loginPassword')?.value || ''
+  if (!phone || !password) {
+    toast('Введите телефон и пароль')
+    return
+  }
+  state.loading = true
+  render()
+  try {
+    state.apiBase = apiBase
+    const response = await fetch(`${apiBase}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, password }),
+    })
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok || !body.token) throw new Error(body.error || 'Неверный телефон или пароль')
+    state.token = body.token
+    state.phone = phone
+    state.password = ''
+    localStorage.setItem(STORAGE.api, apiBase)
+    localStorage.setItem(STORAGE.phone, phone)
+    localStorage.setItem(STORAGE.token, body.token)
+    toast('Вход выполнен')
+    await loadData()
+  } catch (error) {
+    toast(`Не вошли: ${error.message}`)
+  } finally {
+    state.loading = false
+    render()
+  }
+}
+
+function logout() {
+  state.token = ''
+  localStorage.removeItem(STORAGE.token)
+  render()
 }
 
 function saveSettings() {
@@ -159,12 +207,13 @@ async function orderAction(id, endpoint) {
 function renderShell(inner) {
   const { orders } = stats()
   const connected = state.token && orders.length
+  if (!state.token) return renderLogin()
   document.querySelector('#app').innerHTML = `
     <div class="app">
       <header class="topbar">
         <div class="topbar-inner">
           <div class="brand"><span class="brand-mark">林</span><span>LIN ADMIN</span></div>
-          <div class="status-pill ${connected ? 'ok' : ''}">${state.loading ? 'загрузка...' : connected ? `${orders.length} заказов` : 'нужен токен админа'}</div>
+          <div class="status-pill ${connected ? 'ok' : ''}">${state.loading ? 'загрузка...' : connected ? `${orders.length} заказов` : 'нет заказов'}</div>
         </div>
         <nav class="tabs">
           ${[
@@ -181,6 +230,7 @@ function renderShell(inner) {
           <label><span>API</span><input id="apiBase" value="${esc(state.apiBase)}" placeholder="https://linasia.ru" /></label>
           <label><span>Админ-токен</span><input id="adminToken" value="${esc(state.token)}" placeholder="Bearer token из админки" /></label>
           <button class="primary" id="saveSettings">Подключить</button>
+          <button id="logoutBtn" type="button">Выйти</button>
         </section>
         ${inner}
       </main>
@@ -189,6 +239,28 @@ function renderShell(inner) {
   `
   document.querySelectorAll('[data-tab]').forEach((node) => node.addEventListener('click', () => { state.tab = node.dataset.tab; render() }))
   $('#saveSettings').addEventListener('click', saveSettings)
+  $('#logoutBtn').addEventListener('click', logout)
+}
+
+function renderLogin() {
+  document.querySelector('#app').innerHTML = `
+    <div class="app login-app">
+      <main class="login-screen">
+        <section class="login-card">
+          <div class="login-brand"><span class="brand-mark">林</span><span>LIN ADMIN</span></div>
+          <p class="sub">Вход в мобильную админку LIN. Данные берутся с текущего сервера.</p>
+          <label><span>API</span><input id="loginApiBase" value="${esc(state.apiBase)}" placeholder="https://linasia.ru" /></label>
+          <label><span>Телефон админа</span><input id="loginPhone" value="${esc(state.phone)}" inputmode="tel" autocomplete="username" placeholder="+7..." /></label>
+          <label><span>Пароль</span><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Пароль" /></label>
+          <button class="primary full" id="loginBtn" type="button">${state.loading ? 'Входим...' : 'Войти'}</button>
+          <div class="sub sm">Если пароль не подходит, значит на сервере другие ADMIN_PHONE / ADMIN_PASSWORD.</div>
+        </section>
+      </main>
+      <div class="bottom-note ${state.toast ? 'show' : ''}">${esc(state.toast)}</div>
+    </div>
+  `
+  $('#loginBtn').addEventListener('click', login)
+  $('#loginPassword').addEventListener('keydown', (event) => { if (event.key === 'Enter') login() })
 }
 
 function renderDashboard() {
@@ -383,4 +455,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 render()
-loadData()
+if (state.token) loadData()
