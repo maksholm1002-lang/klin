@@ -52,6 +52,7 @@ export default function Admin() {
   const [orderSort, setOrderSort] = useState('new')
   const [orderStatusF, setOrderStatusF] = useState('all')
   const [orderPayF, setOrderPayF] = useState('all')
+  const [orderPromoF, setOrderPromoF] = useState('all')
   const [orderQ, setOrderQ] = useState('')
   const [reconciling, setReconciling] = useState(false)
   const [dragPhoto, setDragPhoto] = useState<{ productId: string; url: string; color?: string } | null>(null)
@@ -369,9 +370,17 @@ export default function Admin() {
     let arr = [...orders]
     if (orderPayF === 'paid') arr = arr.filter(isPaid)
     else if (orderPayF === 'unpaid') arr = arr.filter((o) => !isPaid(o))
+    if (orderPromoF === 'promo') arr = arr.filter((o) => {
+      const orderPromo = String(o.promoCode ?? '').trim()
+      return Boolean(orderPromo || promos.some((p) => p.usedByOrder === o.id))
+    })
+    else if (orderPromoF === 'nopromo') arr = arr.filter((o) => {
+      const orderPromo = String(o.promoCode ?? '').trim()
+      return !orderPromo && !promos.some((p) => p.usedByOrder === o.id)
+    })
     if (orderStatusF !== 'all') arr = arr.filter((o) => String(o.status) === orderStatusF)
     const q = orderQ.trim().toLowerCase()
-    if (q) arr = arr.filter((o) => [o.id, o.client, o.phone, o.product, o.city].some((v) => String(v ?? '').toLowerCase().includes(q)))
+    if (q) arr = arr.filter((o) => [o.id, o.client, o.phone, o.product, o.city, o.promoCode, o.promoGift].some((v) => String(v ?? '').toLowerCase().includes(q)))
     switch (orderSort) {
       case 'old': return arr.reverse()
       case 'unpaid': return arr.sort((a, b) => (isPaid(a) ? 1 : 0) - (isPaid(b) ? 1 : 0))
@@ -379,7 +388,15 @@ export default function Admin() {
       case 'amount': return arr.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0))
       default: return arr
     }
-  }, [orders, orderSort, orderPayF, orderStatusF, orderQ])
+  }, [orders, promos, orderSort, orderPayF, orderPromoF, orderStatusF, orderQ])
+  const promoByOrder = useMemo(() => {
+    const map = new Map<string, AnyRec>()
+    for (const promo of promos) {
+      if (promo.usedByOrder) map.set(String(promo.usedByOrder), promo)
+    }
+    return map
+  }, [promos])
+  const ordersWithPromo = useMemo(() => orders.filter((o) => String(o.promoCode ?? '').trim() || promoByOrder.has(String(o.id))).length, [orders, promoByOrder])
   async function markPaid(id: string) { setMsg('Отмечаю оплату…'); await patchOrder(id, { paymentStatus: 'paid' }); setMsg('✓ Заказ отмечен оплаченным') }
   async function createShipment(id: string) {
     setMsg('Создаю отправление СДЭК…')
@@ -697,6 +714,13 @@ export default function Admin() {
                   <option value="unpaid">Неоплаченные</option>
                 </select>
               </label>
+              <label className="adm-f inline"><span>Промо</span>
+                <select value={orderPromoF} onChange={(e) => setOrderPromoF(e.target.value)}>
+                  <option value="all">Все</option>
+                  <option value="promo">С промокодом ({ordersWithPromo})</option>
+                  <option value="nopromo">Без промокода</option>
+                </select>
+              </label>
               <input className="adm-order-search" placeholder="Поиск: имя, телефон, № заказа…" value={orderQ} onChange={(e) => setOrderQ(e.target.value)} />
               <button className="btn ghost sm" onClick={reconcileOrders} disabled={reconciling} type="button">{reconciling ? 'Сверяю…' : '🔄 Проверить оплаты'}</button>
               <span className="muted sm">{sortedOrders.length} из {orders.length}</span>
@@ -706,6 +730,9 @@ export default function Admin() {
               const hasTrack = track && !track.startsWith('ожидает') && track !== 'через менеджера'
               const paid = isPaid(o)
               const provider = paymentProvider(o)
+              const promoFromList = promoByOrder.get(String(o.id))
+              const promoCode = String(o.promoCode || promoFromList?.code || '').trim()
+              const promoGift = String(o.promoGift || promoFromList?.gift || '').trim()
               const orderContacts = [
                 o.client,
                 o.phone,
@@ -720,6 +747,12 @@ export default function Admin() {
                     <div><b>{o.product}</b> · {[o.color, o.size].filter(Boolean).join(' · ')}<div className="muted sm">{o.id}</div></div>
                     <div className="adm-order-sum">{money(Number(o.total ?? 0))}<span className={`adm-pay ${paid ? 'ok' : ''}`}>{paid ? `оплачен · ${provider}` : `не оплачен · ${provider}`}</span></div>
                   </div>
+                  {promoCode && (
+                    <div className="adm-order-promo">
+                      <span className="adm-order-promo-code">Промокод: {promoCode}</span>
+                      {promoGift && <span>{promoGift}</span>}
+                    </div>
+                  )}
                   <div className="adm-order-meta">{orderContacts}</div>
                   <div className="adm-order-ctl">
                     <label className="adm-f inline"><span>Статус</span><select value={ORDER_STATUS.some(([v]) => v === o.status) ? o.status : ''} onChange={(e) => patchOrder(o.id, { status: e.target.value })}><option value="" disabled>{o.status}</option>{ORDER_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
