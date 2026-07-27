@@ -50,7 +50,7 @@ export default function Admin() {
   const [dropFinance, setDropFinance] = useState<DropFinanceState>({})
   const [expenseDraft, setExpenseDraft] = useState<Record<string, { name: string; amount: string; note: string }>>({})
   const [orderSort, setOrderSort] = useState('new')
-  const [orderStatusF, setOrderStatusF] = useState('all')
+  const [orderStatusF, setOrderStatusF] = useState('active')
   const [orderPayF, setOrderPayF] = useState('all')
   const [orderPromoF, setOrderPromoF] = useState('all')
   const [orderQ, setOrderQ] = useState('')
@@ -378,7 +378,8 @@ export default function Admin() {
       const orderPromo = String(o.promoCode ?? '').trim()
       return !orderPromo && !promos.some((p) => p.usedByOrder === o.id)
     })
-    if (orderStatusF !== 'all') arr = arr.filter((o) => String(o.status) === orderStatusF)
+    if (orderStatusF === 'active') arr = arr.filter((o) => !['shipped', 'cancelled'].includes(String(o.status)))
+    else if (orderStatusF !== 'all') arr = arr.filter((o) => String(o.status) === orderStatusF)
     const q = orderQ.trim().toLowerCase()
     if (q) arr = arr.filter((o) => [o.id, o.client, o.phone, o.product, o.city, o.promoCode, o.promoGift].some((v) => String(v ?? '').toLowerCase().includes(q)))
     switch (orderSort) {
@@ -703,6 +704,7 @@ export default function Admin() {
               </label>
               <label className="adm-f inline"><span>Статус</span>
                 <select value={orderStatusF} onChange={(e) => setOrderStatusF(e.target.value)}>
+                  <option value="active">Активные</option>
                   <option value="all">Все</option>
                   {ORDER_STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
