@@ -254,6 +254,11 @@ export default function App() {
   const checkoutItems = cart
   const productTotal = useMemo(() => checkoutItems.reduce((sum, item) => sum + item.price * item.qty, 0), [checkoutItems])
   const cartQty = useMemo(() => checkoutItems.reduce((sum, item) => sum + item.qty, 0), [checkoutItems])
+
+  useEffect(() => {
+    document.body.classList.toggle('checkout-lock', checkoutOpen && checkoutItems.length > 0)
+    return () => document.body.classList.remove('checkout-lock')
+  }, [checkoutOpen, checkoutItems.length])
   const visiblePoints = useMemo(() => {
     const q = pointSearch.trim().toLowerCase()
     if (!q) return points
@@ -733,7 +738,7 @@ export default function App() {
 
       {/* Оформление */}
       {checkoutOpen && checkoutItems.length > 0 && (
-        <div className="modal" onClick={() => setCheckoutOpen(false)}>
+        <div className="modal checkout-modal" onClick={() => setCheckoutOpen(false)}>
           <div className="sheet wide" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-head"><strong>Оформление</strong><button onClick={() => setCheckoutOpen(false)} type="button">✕</button></div>
             <div className="sheet-sum multi">

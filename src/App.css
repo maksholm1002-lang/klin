@@ -2772,3 +2772,35 @@ body {
     font-size: 19px;
   }
 }
+
+/* Final checkout overlay override. Keep at EOF so mobile sheet rules cannot win. */
+body.checkout-lock {
+  overflow: hidden !important;
+  touch-action: none;
+}
+
+.checkout-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)) !important;
+}
+
+.checkout-modal .sheet {
+  width: min(640px, calc(100vw - 28px)) !important;
+  max-height: calc(100dvh - 28px) !important;
+  margin: 0 !important;
+  border-radius: 16px !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  transform: none !important;
+}
+
+@supports not (height: 100dvh) {
+  .checkout-modal .sheet {
+    max-height: calc(100vh - 28px) !important;
+  }
+}
