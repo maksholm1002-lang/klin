@@ -916,8 +916,8 @@ em { font-style: normal; }
   .p-name { font-size: 22px; }
   .p-desc { font-size: 14px; }
   /* checkout / modals */
-  .modal { align-items: flex-end; padding: 0; }
-  .sheet { padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; max-height: 94vh; }
+  .modal { padding: 12px; }
+  .sheet { padding: 20px 16px; border-radius: 16px; max-height: calc(100vh - 24px); }
   .sheet-head strong { font-size: 16px; }
   .fields .two, .rv-form .two { flex-direction: column; gap: 10px; }
   .totals { font-size: 13.5px; }
