@@ -215,8 +215,8 @@ em { font-style: normal; }
 .ft-copy { color: var(--dim); font-size: 12px; }
 
 /* ---------- modals ---------- */
-.modal { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.35); backdrop-filter: blur(3px); display: flex; align-items: flex-end; justify-content: center; }
-.sheet { width: 100%; max-width: 540px; background: #fff; border: 1px solid var(--line); border-bottom: none; padding: 26px; max-height: 92vh; overflow-y: auto; animation: up .3s var(--ease); box-shadow: 0 -16px 50px rgba(0,0,0,.08); }
+.modal { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.35); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.sheet { width: 100%; max-width: 540px; background: #fff; border: 1px solid var(--line); padding: 26px; max-height: calc(100vh - 40px); overflow-y: auto; animation: up .3s var(--ease); box-shadow: 0 18px 60px rgba(0,0,0,.16); }
 .sheet.narrow { max-width: 400px; }
 @keyframes up { from { transform: translateY(24px); opacity: .5; } to { transform: none; opacity: 1; } }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
@@ -916,7 +916,7 @@ em { font-style: normal; }
   .p-name { font-size: 22px; }
   .p-desc { font-size: 14px; }
   /* checkout / modals */
-  .modal { align-items: flex-end; }
+  .modal { align-items: flex-end; padding: 0; }
   .sheet { padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; max-height: 94vh; }
   .sheet-head strong { font-size: 16px; }
   .fields .two, .rv-form .two { flex-direction: column; gap: 10px; }
