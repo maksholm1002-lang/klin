@@ -647,7 +647,12 @@ em { font-style: normal; }
 .agree input { margin-top: 2px; accent-color: #111; }
 .agree a { color: var(--fg); text-decoration: underline; }
 .sheet.legal { max-width: 720px; }
-.legal-text { white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; font-size: 13px; line-height: 1.7; color: #333; max-height: 70vh; overflow-y: auto; }
+.legal-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; font-size: 13px; line-height: 1.7; color: #333; max-height: 70vh; overflow-y: auto; }
+.legal-text h3 { margin: 18px 0 8px; font-size: 17px; line-height: 1.35; color: var(--fg); }
+.legal-text h3:first-child { margin-top: 0; }
+.legal-text p { margin: 0 0 12px; }
+.legal-text ul { margin: 0 0 12px 18px; padding: 0; }
+.legal-text li { margin: 0 0 6px; }
 
 /* ---------- product description ---------- */
 .p-section { padding: 18px 0; border-top: 1px solid var(--line); }
@@ -2779,7 +2784,14 @@ body.checkout-lock {
   touch-action: none;
 }
 
-.checkout-modal {
+body.overlay-lock {
+  overflow: hidden !important;
+  touch-action: none;
+}
+
+.checkout-modal,
+.account-modal,
+.legal-modal {
   position: fixed !important;
   inset: 0 !important;
   z-index: 1000 !important;
@@ -2789,7 +2801,9 @@ body.checkout-lock {
   padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)) !important;
 }
 
-.checkout-modal .sheet {
+.checkout-modal .sheet,
+.account-modal .sheet,
+.legal-modal .sheet {
   width: min(640px, calc(100vw - 28px)) !important;
   max-height: calc(100dvh - 28px) !important;
   margin: 0 !important;
@@ -2800,7 +2814,9 @@ body.checkout-lock {
 }
 
 @supports not (height: 100dvh) {
-  .checkout-modal .sheet {
+  .checkout-modal .sheet,
+  .account-modal .sheet,
+  .legal-modal .sheet {
     max-height: calc(100vh - 28px) !important;
   }
 }

@@ -18,6 +18,7 @@ type SizeRule = { size: string; waist: [number, number]; hips: [number, number];
 type PickupPoint = { code: string; name: string; address: string; postalCode: string; workTime: string; phone: string; latitude?: number; longitude?: number }
 type CartItem = { productId: string; name: string; image: string; size: string; color: string; qty: number; price: number }
 type AccountOrder = Record<string, unknown>
+type PromoState = { valid: boolean; gift?: string; discountPercent?: number; reason?: string }
 type LeafletModule = typeof import('leaflet')
 type LeafletRuntime = LeafletModule & { default?: LeafletModule }
 
@@ -44,6 +45,11 @@ const statusRu = (s: string) => STATUS_RU[s] || s
 const cdekTrackUrl = (t: string) => `https://www.cdek.ru/ru/tracking?order_id=${encodeURIComponent(t)}`
 const money = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} ₽`
 const dolyamePart = (n: number) => Math.ceil(Math.max(0, n) / 4)
+const legalBlocks = (text: string) => text
+  .replace(/^\uFEFF/, '')
+  .split(/\n{2,}/)
+  .map((block) => block.trim())
+  .filter(Boolean)
 const FREE_SHIPPING_THRESHOLD = 8000
 const TG = 'lin_asia'
 const UTM_STORAGE = 'lin-utm'
@@ -227,7 +233,7 @@ export default function App() {
   const [agree, setAgree] = useState(false)
   const [quote, setQuote] = useState<{ cost: number; label: string; originalCost?: number; freeShipping?: boolean } | null>(null)
   const [promo, setPromo] = useState('')
-  const [promoState, setPromoState] = useState<{ valid: boolean; gift?: string; reason?: string } | null>(null)
+  const [promoState, setPromoState] = useState<PromoState | null>(null)
   const [promoChecking, setPromoChecking] = useState(false)
   const [placing, setPlacing] = useState(false)
   const [orderMsg, setOrderMsg] = useState('')
@@ -259,6 +265,11 @@ export default function App() {
     document.body.classList.toggle('checkout-lock', checkoutOpen && checkoutItems.length > 0)
     return () => document.body.classList.remove('checkout-lock')
   }, [checkoutOpen, checkoutItems.length])
+
+  useEffect(() => {
+    document.body.classList.toggle('overlay-lock', authOpen || accountOpen || Boolean(legal))
+    return () => document.body.classList.remove('overlay-lock')
+  }, [authOpen, accountOpen, legal])
   const visiblePoints = useMemo(() => {
     const q = pointSearch.trim().toLowerCase()
     if (!q) return points
@@ -542,6 +553,9 @@ export default function App() {
   }), [catalogCategory, visibleCatalogProducts])
   const freeShippingLeft = Math.max(0, FREE_SHIPPING_THRESHOLD - productTotal)
   const displayDeliveryCost = productTotal >= FREE_SHIPPING_THRESHOLD && quote ? 0 : (quote?.cost ?? 0)
+  const promoDiscountPercent = promoState?.valid ? Math.max(0, Math.min(100, Number(promoState.discountPercent) || 0)) : 0
+  const discountAmount = promoDiscountPercent > 0 ? Math.floor(productTotal * promoDiscountPercent / 100) : 0
+  const checkoutTotal = Math.max(0, productTotal - discountAmount + displayDeliveryCost)
   const sfChart = sfProduct?.sizeChart ?? []
   const sfResult = useMemo(() => recommendTopSize(sfChart, Number(sfChest) || 0), [sfChart, sfChest])
   const openSizeFinder = (p: Product | null) => { setSfProduct(p); setSfChest(''); setSizeFinderOpen(true) }
@@ -806,16 +820,17 @@ export default function App() {
                 <button type="button" className="btn ghost sm" onClick={checkPromo} disabled={promoChecking || !promo.trim()}>{promoChecking ? '…' : 'Применить'}</button>
               </div>
               {promoState && (promoState.valid
-                ? <div className="promo-ok">🎁 Промокод принят — {promoState.gift || 'подарок в посылке'}</div>
+                ? <div className="promo-ok">Промокод принят — {promoDiscountPercent > 0 ? `скидка ${promoDiscountPercent}%` : (promoState.gift || 'подарок в посылке')}</div>
                 : <div className="promo-err">{promoState.reason === 'used' ? 'Промокод уже использован' : promoState.reason === 'not_found' ? 'Промокод не найден' : 'Не удалось проверить'}</div>)}
             </div>
 
             <div className="totals">
               <div><span>Товары</span><span>{money(productTotal)}</span></div>
+              {discountAmount > 0 && <div className="discount"><span>Скидка {promoDiscountPercent}%</span><span>-{money(discountAmount)}</span></div>}
               <div><span>Доставка</span><span>{quote ? (displayDeliveryCost ? money(displayDeliveryCost) : 'бесплатно') : '—'}</span></div>
               {productTotal > 0 && productTotal < FREE_SHIPPING_THRESHOLD && <div className="ship-left"><span>До бесплатной доставки</span><span>{money(freeShippingLeft)}</span></div>}
               {productTotal >= FREE_SHIPPING_THRESHOLD && <div className="ship-left ok"><span>Бесплатная доставка</span><span>применена</span></div>}
-              <div className="grand"><span>Итого</span><span>{money(productTotal + displayDeliveryCost)}</span></div>
+              <div className="grand"><span>Итого</span><span>{money(checkoutTotal)}</span></div>
             </div>
             <div className="pay-methods">
               <button className={paymentMethod === 'tochka' ? 'on' : ''} type="button" onClick={() => setPaymentMethod('tochka')}>
@@ -824,7 +839,7 @@ export default function App() {
               </button>
               <button className={paymentMethod === 'dolyame' ? 'on' : ''} type="button" onClick={() => setPaymentMethod('dolyame')}>
                 <strong>Долями</strong>
-                <span>4 платежа по {money(dolyamePart(productTotal + (quote?.cost ?? 0)))}</span>
+                <span>4 платежа по {money(dolyamePart(checkoutTotal))}</span>
               </button>
             </div>
             <label className="agree"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /><span>Я принимаю <a href="/legal/public-offer.md" onClick={(e) => { e.preventDefault(); openLegal('public-offer', 'Публичная оферта') }}>оферту</a> и согласен на <a href="/legal/personal-data-consent.md" onClick={(e) => { e.preventDefault(); openLegal('personal-data-consent', 'Согласие на обработку данных') }}>обработку данных</a>.</span></label>
@@ -838,7 +853,7 @@ export default function App() {
 
       {/* Вход / Кабинет */}
       {(authOpen || accountOpen) && (
-        <div className="modal" onClick={() => { setAuthOpen(false); setAccountOpen(false) }}>
+        <div className="modal account-modal" onClick={() => { setAuthOpen(false); setAccountOpen(false) }}>
           <div className="sheet narrow" onClick={(e) => e.stopPropagation()}>
             {accountOpen ? (
               <>
@@ -912,10 +927,17 @@ export default function App() {
 
       {/* Legal */}
       {legal && (
-        <div className="modal" onClick={() => setLegal(null)}>
+        <div className="modal legal-modal" onClick={() => setLegal(null)}>
           <div className="sheet wide legal" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-head"><strong>{legal.label}</strong><button onClick={() => setLegal(null)} type="button">✕</button></div>
-            <pre className="legal-text">{legal.text}</pre>
+            <div className="legal-text">
+              {legalBlocks(legal.text).map((block, index) => {
+                const clean = block.replace(/^#{1,6}\s*/, '')
+                if (/^#{1,6}\s/.test(block)) return <h3 key={index}>{clean}</h3>
+                if (/^[-*]\s/m.test(block)) return <ul key={index}>{block.split(/\n/).map((line, i) => <li key={i}>{line.replace(/^[-*]\s*/, '')}</li>)}</ul>
+                return <p key={index}>{clean}</p>
+              })}
+            </div>
           </div>
         </div>
       )}
